@@ -1,0 +1,28 @@
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "side":null,
+        "args":{
+            "x":null,
+            "y":null,
+            "z":null,
+            "roll":null,
+            "pitch":null,
+            "target":"plastic_cup"
+        }
+    },
+    {
+            "type": "arm", 
+            "name": "set_pose", 
+            "side": "detect_result[\"plastic_cup\"][\"suggested_side\"]",
+            "args": {
+                "x": "detect_result[\"plastic_cup\"][0]",
+                "y": "detect_result[\"plastic_cup\"][1]", 
+                "z": "detect_result[\"plastic_cup\"][2]+20", 
+                "roll": "detect_result[\"plastic_cup\"][3]",
+                "pitch": "detect_result[\"plastic_cup\"][4]",
+                "target": null
+                }
+    }
+]

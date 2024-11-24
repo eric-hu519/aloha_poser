@@ -1,0 +1,49 @@
+#Query: Grasp the straw and the cup, and put the straw in the cup
+[
+    "move to 10cm above the straw and the cup",
+    "move to the straw and the cup",
+    "grasp the straw and the cup",
+    "move arms up for 10cm",
+    "let the arm holding the straw move to the arm holding the cup 20cm above"
+    "open the arm holding the straw",
+    "put down the cup"
+]
+
+
+#Query: move to 10cm above the straw and the cup
+[
+    {
+        "type": "camera",
+        "name": "detect",
+        "side": null,
+        "args": {
+                    "x": null, 
+                    "y": null, 
+                    "z": null, 
+                    "roll": null, 
+                    "pitch": null, 
+                    "target": "straw"
+                }
+    },
+    {
+        "type": "camera",
+        "name": "detect",
+        "side": null,
+        "args": {
+                    "x": null, 
+                    "y": null, 
+                    "z": null, 
+                    "roll": null, 
+                    "pitch": null, 
+                    "target": "cup"
+                }
+    },
+    {
+        "type":"arm",
+        "name":"set_pose",
+        "side":"detect_result[\"straw\"][\"suggested_side\"]",
+        ...
+    },
+    
+]
+

@@ -1,0 +1,83 @@
+objects = ['blue block', 'red block']
+# Query: grasp the blue block and put it on the red block.
+["move to 20cm on top of the blue block",
+"move to the blue block",
+"grasp the blue block",
+"move to 20cm on top of the blue block",
+"move to 20cm on top of the red block",
+"open gripper"]
+# done
+
+objects = ['white cup', 'yellow ball']
+# Query: drop the yellow ball in the white cup.
+["move to 20cm on top of the yellow ball",
+"move to the yellow ball"
+"grasp the yellow ball",
+"move to 20cm on top of the yellow ball",
+"move to 20cm on top of the white cup",
+"open gripper"]
+# done
+
+objects = ['tissue box', 'tissue', 'cup']
+# Query: Can you pass me a tissue and place it next to the cup and be aware of the cup?
+["move to 10cm on top of the tissue box",
+"move to tissue",
+"grasp the tissue",
+"move to 10cm on top of the tissue box ",
+"move to 10cm on top of the cup",
+"move to 20cm right to the cup",
+"open gripper"]
+# done
+
+objects = ['white cup','blue basin']
+#Query: Pour the water from the cup into the blue basin
+["move to 20cm on the top of the white cup",
+"open gripper",
+"grasp the white cup",
+"move to 20cm on the top of the white cup",
+"move to 20cm on the top of the blue basin",
+"Rotate the wrist 180° clockwise"]
+#done
+
+objects = ['purple bottle', 'trash can']
+#Query: Throw the purple bottle into the trash can
+["move to 20cm on top of top of the purple bottle",
+ "move to the purple bottle",
+ "grasp the purple bottle",
+ "move to 20cm on top of top of the purple bottle",
+ "move to 20cm on the top of the trash can",
+ "open gripper"]
+# done
+
+objects = ['small box', 'large box']
+#Query: Stack the small box on top of the large box
+["move to 20cm on top of the small box",
+ "move to the small box",
+ "grasp the small box",
+ "move to 20cm on top of the small box",
+ "move to 20cm on top of the large box",
+ "open gripper"]
+# done
+
+objects = ['white bottle']
+#Query: Rotate the white bottle upside down over the table
+["move to 20cm on top of the white bottle",
+"move to the white bottle",
+"grasp the white bottle",
+"move to 20cm on top of the white bottle",
+"move to 20cm on top of the table",
+"Rotate the wrist 180° clockwise",
+"move to 20cm on top of the table",
+"open gripper"]
+#done
+
+object = ['plastic cup']
+#Query: grasp the plastic cup and put it right to its original positon.
+["move to 20cm on top of the plastic cup",
+"move to plastic cup",
+"grasp the plasic cup",
+"move to 20cm on top of the plastic cup",
+"move to 20cm right to the original place of plastic cup",
+"open gripper"
+]
+#done

@@ -1,0 +1,19 @@
+[
+    "detect the red straw",
+    "detect the plastic cup",
+    "move the arm above the red straw",
+    "move the arm above the plastic cup",
+    "move the arm to the red straw",
+    "move the arm to the plastic cup",
+    "close the gripper near the red straw",
+    "close the gripper near the plastic cup",
+    "move up the arm with the red straw",
+    "move up the arm with the plastic cup",
+    "check point",
+    "detect the plastic cup",
+    "move the arm with the red straw above the plastic cup",
+    "open the gripper near the red straw",
+    "put down the arm with the plastic cup",
+    "open the gripper near the plastic cup",
+    "move up the arm near the plastic cup"
+]

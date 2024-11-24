@@ -1,0 +1,240 @@
+# Query: move to 5cm on top of the blue block.
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["blue_block"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["blue_block"][0]",
+            "y": "detect_result["blue_block"][1]",
+            "z": "detect_result["blue_block"][2]+5",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: move to 10cm in right to the computer
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["computer"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["computer"][0]",
+            "y": "detect_result["computer"][1]-10",
+            "z": "detect_result["computer"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: move to 10cm in left to the computer
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["computer"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["computer"][0]",
+            "y": "detect_result["computer"][1]+10",
+            "z": "detect_result["computer"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: move to 20cm on top of the red ball.
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["red_ball"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["red_ball"][0]",
+            "y": "detect_result["red_ball"][1]",
+            "z": "detect_result["red_ball"][2]+20",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: move to 10cm behind the phone.
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["phone"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["phone"][0]-10",
+            "y": "detect_result["phone"][1]",
+            "z": "detect_result["phone"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: move to 10cm in front of the tissue box.
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["tissue_box"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["tissue_box"][0]+10",
+            "y": "detect_result["tissue_box"][1]",
+            "z": "detect_result["tissue_box"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+#Query: move 20cm left to the original position of the plastic cup.
+[
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["white_box"][0]",
+            "y": "detect_result["white_box"][1]+20",
+            "z": "detect_result["white_box"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+#Query: move 10cm in front of the original position of the red hat.
+[
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["white_box"][0]+10",
+            "y": "detect_result["white_box"][1]",
+            "z": "detect_result["white_box"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: move to the white box
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "target":["white_box"]
+        }
+    },
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["white_box"][0]",
+            "y": "detect_result["white_box"][1]",
+            "z": "detect_result["white_box"][2]",
+            "roll":detect_result["blue_block"][3],
+            "pitch":detect_result["blue_block"][4]
+        }
+    }
+]
+
+# Query: grasp the cup.
+[
+    {
+        "type":"gripper",
+        "name":"close",
+        "args":"null"
+    }
+]
+
+# Query: open gripper.
+[
+    {
+        "type":"gripper",
+        "name":"open",
+        "args":"null"
+    }
+]
+
+# Query: close gripper.
+[
+    {
+        "type":"gripper",
+        "name":"close ",
+        "args":"null"
+    }
+]
+
+# Query: rotate the wrist clockwise.
+[
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["white_box"][0]",
+            "y": "detect_result["white_box"][1]",
+            "z": "detect_result["white_box"][2]",
+            "roll":detect_result["blue_block"][3]+1.6,
+            "pitch":detect_result["blue_block"][4]
+        }
+    }    
+]
+
+# Query: rotate the wrist clockwise.
+[
+    {
+        "type":"arm",
+        "name": "set_pose",
+        "args":{
+            "x": "detect_result["white_box"][0]",
+            "y": "detect_result["white_box"][1]",
+            "z": "detect_result["white_box"][2]",
+            "roll":detect_result["blue_block"][3]-1.6,
+            "pitch":detect_result["blue_block"][4]
+        }
+    }    
+]

@@ -1,0 +1,6 @@
+*.png
+*.jpeg
+*.jpg
+data_record.txt
+log.txt
+api_key.json
