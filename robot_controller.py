@@ -84,11 +84,16 @@ class robot_controller:
             self.camera_intrinsic = (381.6689147949219, 381.6689147949219, 321.3359680175781, 236.79440307617188)
 
     def set_pose(self, args, side):
+        """
+        移动机械臂到达指定坐标API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.set_ee_pose_components(**args)
         
     def image_to_robot_coords(self,target_pos, camera_pose, depth_scale):
-        # 将图像坐标 (x, y) 和深度值转换为相机坐标
+        """
+        将图像坐标 (x, y) 和深度值转换为机械臂
+        """
         z_c = target_pos[2] * depth_scale
         x_c = (target_pos[0] - self.camera_intrinsic[2]) * z_c / self.camera_intrinsic[0]
         y_c = (target_pos[1] - self.camera_intrinsic[3]) * z_c / self.camera_intrinsic[1]
@@ -98,6 +103,9 @@ class robot_controller:
         return robot_coords[:3]
     
     def load_calib_file(self,file_path):
+        """
+        从文件中加载标定结果
+        """
         camera_pose = np.loadtxt(f'{file_path}/realsense_camera_pose.txt')
         depth_scale = np.loadtxt(f'{file_path}/realsense_camera_depth_scale.txt')
         return camera_pose, depth_scale
@@ -121,6 +129,9 @@ class robot_controller:
 
         return roll, pitch
     def get_target_coord_by_side(self,side,target_pos):
+        """
+        根据目标位置和机械臂姿态计算机械臂末端坐标
+        """
         if side == 'left':
             camera_pose, depth_scale = self.load_calib_file(CALIBRITION_FILE_PATH_L)
             offsets = OFFSET_L
@@ -153,6 +164,9 @@ class robot_controller:
         return robot_coords
 
     def detect(self, args, side=None):
+        """
+        根据指定参数进行目标检测，分配对应机械臂
+        """
         #push target obj to tracker
         if not self.test_camera:
             #use real camera if not test
@@ -210,6 +224,9 @@ class robot_controller:
         self.logger.info(f"Detect result: {self.detect_result[args['target']]}")
 
     def push_nlp_to_visiontracker(self, nlp):#将nlp消息发送给物理机2
+        """
+        将检测目标信息发给视觉追踪模块
+        """
         url = 'http://192.168.31.109:1115/vision'  # 物理机2的地址
         headers = {'Content-Type': 'application/json'}  # 设置HTTP头部为JSON
         data = {'nlp': nlp}  # 将nlp消息包装成一个字典
@@ -222,12 +239,18 @@ class robot_controller:
 
 
     def get_rgbd_img(self):
+        """
+        从相机获取深度图和彩色图
+        """
         self.camera.start()
         depth_image, color_image = self.camera.get_frames()
         self.camera.stop()
         return depth_image, color_image
 
     def send_rgb_img(self,img,url):
+        """
+        发送RGB图像到视觉追踪模块
+        """
         img = cv2.imencode('.jpg', img)[1].tobytes()
         compressed_img = zlib.compress(img)
         headers = {'Content-Type': 'application/octet-stream'}
@@ -241,6 +264,9 @@ class robot_controller:
 
 
     def set_joint_pose(self,args, side):
+        """
+        设置指定关节位置和角度API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         joint_name = args['joint_name']
         value = args['value']
@@ -250,6 +276,9 @@ class robot_controller:
         
 
     def open_gripper(self,args, side):
+        """
+        张开夹爪API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         #update robot status
         self.robot_status[side]['gripper'] = 'open'
@@ -258,6 +287,9 @@ class robot_controller:
         bot.gripper.open()
 
     def close_gripper(self,args, side):
+        """
+        闭合夹爪API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         #update robot status
         self.robot_status[side]['gripper'] = 'close'
@@ -266,18 +298,30 @@ class robot_controller:
         bot.gripper.close(side = side)
 
     def set_trajectory(self,args, side):
+        """
+        以末端为原点进行移动的API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.set_ee_cartesian_trajectory(**args)
 
     def home_pose(self,args, side):
+        """
+        将机械臂移动到初始位置API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.set_ee_pose_components(**HOME_POSE[side])
 
     def sleep_pose(self,args, side):
+        """
+        将机械臂移动到休眠位置API
+        """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.go_to_sleep_pose()
 
     def get_function_by_name(self,actuator_type, name):
+        """
+        根据名称获取对应的API函数
+        """
         if actuator_type == 'camera':
             return {
                 'detect': self.detect
@@ -296,7 +340,11 @@ class robot_controller:
                 'open': self.open_gripper,
                 'close': self.close_gripper
             }.get(name, None)
+        
     def parse_args(self, args, side = None):
+        """
+        解析参数，将参数中的detect_result替换为检测结果
+        """
         parsed_args = {}
         pattern = r'(detect_result)\[["\']?(\w+)["\']?\]\[(\d+)\](\s*[\+\-]?\s*\d+(\.\d+)?(cm)?)?'
         side_pattern = r'detect_result\[["\']?(\w+)["\']?\]\[["\']?(\w+)["\']?\]'
@@ -336,6 +384,9 @@ class robot_controller:
                 parsed_args[arg] = args[arg]
         return parsed_args, side
     def run(self,action_sequence):
+        """
+        运行动作序列
+        """
         #print current working directory
         #self.logger.info(f"Current working directory: {os.getcwd()}")
         if '.json' in action_sequence:
@@ -387,10 +438,16 @@ class robot_controller:
             self.sleep_pose({}, DEFAULT_SIDE)
         
     def init_pose_for_one_side(self,side):
+        """
+        单边机械臂初始化
+        """
         self.home_pose({}, side)
         self.open_gripper({}, side)
 
     def run_one_side(self,action_sequence):
+        """
+        运行单边动作序列
+        """
         #run action sequence
         for item in action_sequence:
             actuator_type = item.get('type')
@@ -408,6 +465,9 @@ class robot_controller:
     #separete actions by side and detect. 
     #ensure the synchronization of actions
     def separate_actions(self,action_sequence):
+        """
+        将动作序列以detect为分界分割为左右两边和detect动作，以便于同步执行
+        """
         #separate actions by side
         side1_actions = []
         side2_actions = []
