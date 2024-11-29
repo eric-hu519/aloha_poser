@@ -112,15 +112,15 @@ def main():
     #save the action sequence
     with open('action_sequence_test.json', 'w') as file:
         json.dump(action_sequence, file)
-    #check json schema
-    with open('action_check_schema.json', 'r') as file:
-        schema = json.load(file)
-    try:
-        jsonschema.validate(action_sequence, schema)
-        print('Action sequence is valid')
-    except jsonschema.exceptions.ValidationError as e:
-        print('Action sequence is invalid')
-        print(e)
+    # #check json schema
+    # with open('action_check_schema.json', 'r') as file:
+    #     schema = json.load(file)
+    # try:
+    #     jsonschema.validate(action_sequence, schema)
+    #     print('Action sequence is valid')
+    # except jsonschema.exceptions.ValidationError as e:
+    #     print('Action sequence is invalid')
+    #     print(e)
     print('Action sequence:\n')
     for action in action_sequence:
         print(action)
