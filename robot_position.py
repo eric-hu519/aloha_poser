@@ -7,7 +7,7 @@ def main():
     args={}
     side = 'left'
     args['target'] = "red_straw"
-    controller = robot_controller()
+    controller = robot_controller(test_camera=True)
     #detect_pose = controller.detect(args, 'left')
     # target_pos = {}
     # target_pos["x"]=float(detect_pose[0])

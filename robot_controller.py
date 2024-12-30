@@ -10,7 +10,7 @@ import test
 import tqdm
 from flask import g
 from httpx import head
-from sympy import li
+from sympy import det, li
 from traitlets import default
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
 import numpy as np
@@ -26,12 +26,12 @@ import zlib
 import requests
 import cv2
 import threading
-
+from utils.robot_utils import depth_circle_sampler
 from realsense_test_aloha import RealSenseCamera
-
+from utils.pressure_sensor import PressureSensor
 SCALE = 0.01
-STRAW_POS = [243,381,628,33,145]
-CUP_POS = [465,367,1093,81,144]
+STRAW_POS = [243,381,628,81,145]
+CUP_POS = [243,381,628,33,144]
 
 # STRAW_POS = [465,367,628,33,145]
 # CUP_POS = [243,381,1093,81,144]
@@ -39,9 +39,9 @@ CUP_POS = [465,367,1093,81,144]
 IMAGE_URL = "http://192.168.31.109:1115/upload"
 CALIBRITION_FILE_PATH_L = 'calibration_left/calib_result_20241122222424'
 CALIBRITION_FILE_PATH_R = 'calibration_right/calib_result_20241125001140'
-OFFSET_L = [0.030, -0.15, 0]
+OFFSET_L = [0.030, -0.15, 0.2]
 OFFSET_R = [-0.28, 0.075, 0.25]
-DEFAULT_SIDE = 'right'
+DEFAULT_SIDE = 'left'
 GRIPPER_POSE_THRESHOLD = 60
 PREP_GRIPPER_POSE = [0.8, 0.785] #roll and pitch
 
@@ -49,9 +49,10 @@ HOME_POSE = {'left': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw
              'right': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0}}
 
 PRESSURE_SENSOR_THRESHOLD = 0.5
+DEPTH_CIRCLE_RADIUS = 5 #in pixel
 
 class robot_controller:
-    def __init__(self,one_arm_mode = True, test_camera = False) -> None:
+    def __init__(self,one_arm_mode = True, test_camera = False, enable_pressure = False) -> None:
                 
 
         self.logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class robot_controller:
         self.robot_status['right']['robot_pose'] = []
         self.detect_target['left'] = []
         self.detect_target['right'] = []
-        
+        self.enable_pressure = enable_pressure
         #init camera
         self.test_camera = test_camera
         self.predefined_pos = {'red_straw': STRAW_POS, 'plastic_cup': CUP_POS}
@@ -103,7 +104,43 @@ class robot_controller:
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.set_ee_pose_components(**args)
+        #update robot status
+        self.update_arm_position(side)
         
+    def grasp(self, args, side):
+        """
+        夹取目标API
+        """
+        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        #first move above the target
+        args['z'] = args['z'] + 0.15
+        self.set_pose(args, side)
+        #then move to the target
+        args['z'] = args['z'] - 0.15
+        self.set_pose(args, side)
+        #close gripper
+        self.close_gripper(args, side, type='grasp')
+        #move up
+        args['z'] = args['z'] + 0.15
+        self.set_pose(args, side)
+        #update robot status
+        self.robot_status[side]['holding_status'] = True
+    
+    def release_obj(self, args, side):
+        """
+        释放目标API
+        """
+        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        args['z'] = args['z'] - 0.1
+        self.set_pose(args, side)
+        #open gripper
+        self.open_gripper(args, side)
+        #move up
+        args['z'] = args['z'] + 0.1
+        self.set_pose(args, side)
+        #update robot status
+        self.robot_status[side]['holding_status'] = False
+
     def image_to_robot_coords(self,target_pos, camera_pose, depth_scale):
         """
         将图像坐标 (x, y) 和深度值转换为机械臂
@@ -197,6 +234,10 @@ class robot_controller:
         #print(f"center point: {x_center},{y_center}")
         #get deepth values
             depth = depth_img[int(y_center),int(x_center)]
+            self.logger.info(f"original depth: {depth}")
+            
+            depth = depth_circle_sampler(5,depth_img, int(x_center),int(y_center))
+            self.logger.info(f"sampled depth: {depth}")
             #self.logger.info(f"{args['target']} position: {x_center},{y_center},{depth},{width},{height}")
         else:
             #use predifined position if test
@@ -307,13 +348,13 @@ class robot_controller:
         #execute open gripper
         bot.gripper.open()
 
-    def get_pressure_sensor_status(self, side):
-        """
-        获取夹爪压力传感器状态
-        """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        #TODO get pressure sensor status
-        return 0
+    # def get_pressure_sensor_status(self, side):
+    #     """
+    #     获取夹爪压力传感器状态
+    #     """
+    #     bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+    #     #TODO get pressure sensor status
+    #     return 0
 
     def update_arm_position(self,side):
         """
@@ -333,24 +374,77 @@ class robot_controller:
         检查夹爪状态是否夹持成功
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        #current_pressure = bot.gripper.get_pressure_status()
-        current_pressure = 0
-        if current_pressure - self.robot_status[side]['gripper_pressure'] > PRESSURE_SENSOR_THRESHOLD:
-            return True
-        else:
+        #get pressure sensor status
+        sensor = PressureSensor()
+        result = sensor.run_and_get_result()
+        if 'no_touch' in result:
             return False
+        else:
+            return True
 
     
-    def close_gripper(self,args, side):
+    def close_gripper(self,args, side, type = 'normal'):
         """
         闭合夹爪API
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         #execute close gripper
-        bot.gripper.close(side = side)
-        self.robot_status[side]['gripper'] = 'close'
-        self.robot_status[side]['holding_status'] = True
         
+        #retry mechanism
+        if type == 'grasp':
+            if self.enable_pressure:
+                retry = 0
+                #record gripper pressure
+                #init gripper status
+                while self.check_gripper_status(side):
+                    continue
+                self.robot_status[side]['gripper_pressure'] = False
+                while retry < 3:
+                    bot.gripper.close(side = side)
+                    if self.check_gripper_status(side):
+                        self.robot_status[side]['gripper_pressure'] = True
+                        self.robot_status[side]['gripper'] = 'close'
+                        self.robot_status[side]['holding_status'] = True
+                        break
+                    else:
+                        retry = retry + 1
+                        #back to the last pose and re-detect and close gripper
+                        if len(self.robot_status[side]['robot_pose']) >= 2:
+                            last_pose = self.robot_status[side]['robot_pose'][-2]
+                        else:
+                            last_pose = self.robot_status[side]['robot_pose'][-1]
+                        retry_args = {'x': last_pose[0], 'y': last_pose[1], 'z': last_pose[2], 'roll': last_pose[3], 'pitch': last_pose[4]}
+                        self.set_pose(retry_args, side)
+                        #open gripper
+                        self.open_gripper({}, side)
+                        #update detect result
+                        last_target = self.detect_target[side][-1]
+                        self.detect({'target': last_target}, side)
+                        #retry close gripper
+                        last_pose = self.robot_status[side]['robot_pose'][-1]
+                        retry_args = {'x': last_pose[0], 'y': last_pose[1], 'z': last_pose[2], 'roll': last_pose[3], 'pitch': last_pose[4]}
+                        self.set_pose(retry_args, side)
+                        bot.gripper.close(side = side)
+                        self.logger.warning(f"Retry {retry} times")
+                if retry == 3:
+                    self.logger.error(f"Failed to grasp {last_target} after 3 retries.")
+                    self.open_gripper({}, side)
+                    self.home_pose({}, side)
+                    self.sleep_pose({}, side)
+                    exit(1)
+            else:
+                bot.gripper.close(side = side)
+                #update robot status
+                self.robot_status[side]['gripper_pressure'] = False
+                self.robot_status[side]['gripper'] = 'close'
+                self.robot_status[side]['holding_status'] = True
+        else: #else for 'normal'
+            bot.gripper.close(side = side)
+            #update robot status
+            self.robot_status[side]['gripper_pressure'] = False
+            self.robot_status[side]['gripper'] = 'close'
+            self.robot_status[side]['holding_status'] = False #False is set because not holding
+
 
     def set_trajectory(self,args, side):
         """
@@ -358,6 +452,8 @@ class robot_controller:
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.set_ee_cartesian_trajectory(**args)
+        #update robot position
+        self.update_arm_position(side)
 
     def home_pose(self,args, side):
         """
@@ -388,7 +484,8 @@ class robot_controller:
                 'set_trajectory': self.set_trajectory,
                 'home_pose': self.home_pose,
                 'sleep_pose': self.sleep_pose,
-                
+                'grasp': self.grasp,
+                'release': self.release_obj
             }.get(name, None)
         elif actuator_type == 'gripper':
             return {
@@ -401,6 +498,7 @@ class robot_controller:
         解析参数，将参数中的detect_result替换为检测结果
         """
         parsed_args = {}
+        detect_target = None
         pattern = r'(detect_result)\[["\']?(\w+)["\']?\]\[(\d+)\](\s*[\+\-]?\s*\d+(\.\d+)?(cm)?)?'
         side_pattern = r'detect_result\[["\']?(\w+)["\']?\]\[["\']?(\w+)["\']?\]'
         if side is not None and not self.one_arm_mode:
@@ -418,6 +516,7 @@ class robot_controller:
                 if "detect_result" in args[arg]:
                     args[arg] = args[arg].replace(" ","")
                     match = re.match(pattern,args[arg])
+                    
                     if match.group(4) is not None:
                         scale_pattern = r'([\+\-\+]?\d+(\.\d+)?)'
                         
@@ -436,9 +535,10 @@ class robot_controller:
                         parsed_args[arg] = self.detect_result[match.group(2)][side][int(match.group(3))] + (SCALE*float(diviation))
                     #parsed_args[arg] = parsed_args[arg][match.group(2)]
                     #parsed_args[arg] = eval(match.group(1),{"detect_result":self.detect_result})[match.group(2)][int(match.group(3))] + (SCALE*float(scale_match.group(1)) if match.group(4) is not None else 0)
+                    detect_target = match.group(2)
             else:
                 parsed_args[arg] = args[arg]
-        return parsed_args, side
+        return parsed_args, side, detect_target
     def run(self,action_sequence):
         """
         运行动作序列
@@ -491,7 +591,7 @@ class robot_controller:
         else:
             #run action sequence for one side
             self.run_one_side(data)
-            self.sleep_pose({}, DEFAULT_SIDE)
+            #self.sleep_pose({}, DEFAULT_SIDE)
         
     def init_pose_for_one_side(self,side):
         """
@@ -510,53 +610,23 @@ class robot_controller:
             name = item.get('name')
             args = item.get('args')
             side = item.get('side') if item.get('side') is not None else None
-            action_type = item.get('action_type')
             if args is not None:
-                args, run_side = self.parse_args(args,side)
+                args, run_side, detect_target = self.parse_args(args,side)
             #assign side to operate when detect is not called
             func = self.get_function_by_name(actuator_type, name)
             self.logger.info(f"Running {actuator_type} {name} with args {args} for {run_side} arm")
-            #retry mechanism
-            if name == 'close':
-                if action_type == 'grasp':
-                    retry = 0
-                    #record gripper pressure
-                    self.robot_status[run_side]['gripper_pressure'] = self.get_pressure_sensor_status(run_side)
-                    while retry < 3:
-                        func(args, run_side)
-                        if self.check_gripper_status(run_side):
-                            break
-                        else:
-                            retry = retry + 1
-                            #back to the last pose and re-detect and close gripper
-                            if len(self.robot_status[run_side]['robot_pose']) >= 2:
-                                last_pose = self.robot_status[run_side]['robot_pose'][-2]
-                            else:
-                                last_pose = self.robot_status[run_side]['robot_pose'][-1]
-                            retry_args = {'x': last_pose[0], 'y': last_pose[1], 'z': last_pose[2], 'roll': last_pose[3], 'pitch': last_pose[4]}
-                            self.set_pose(retry_args, run_side)
-                            #open gripper
-                            self.open_gripper({}, run_side)
-                            #update detect result
-                            last_target = self.detect_target[run_side][-1]
-                            self.detect({'target': last_target}, run_side)
-                            #retry close gripper
-                            last_pose = self.robot_status[run_side]['robot_pose'][-1]
-                            retry_args = {'x': last_pose[0], 'y': last_pose[1], 'z': last_pose[2], 'roll': last_pose[3], 'pitch': last_pose[4]}
-                            self.set_pose(retry_args, run_side)
-                            func(args, run_side)
-                            self.logger.warning(f"Retry {retry} times")
-                    if retry == 3:
-                        self.logger.error(f"Failed to grasp {last_target} after 3 retries.")
-                        self.open_gripper({}, run_side)
-                        self.home_pose({}, run_side)
-                        self.sleep_pose({}, run_side)
-                        exit(1)
-            else:
-                func(args, run_side)
-            #update robot status if pose changed
-            if name == 'set_pose' or name == 'set_trajectory':
-                self.update_arm_position(run_side)
+            func(args, run_side)
+            #update target position by arm position if grasp is called
+            if actuator_type != 'camera':
+                assert detect_target is not None, "Detect target is not assigned."
+                if name == 'grasp':
+                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
+                #if holding, target coordinate changes with robot arm
+                elif name == 'set_pose' and self.robot_status[run_side]['holding_status'] == True:
+                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
+                elif name == 'release':
+                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-2]
+                    
         
 
     #separete actions by side and detect. 
@@ -603,9 +673,9 @@ class robot_controller:
         return side1_actions, side2_actions, detect_actions
         
 def main():
-    controller = robot_controller(one_arm_mode = True, test_camera = True)
+    controller = robot_controller(one_arm_mode = True, test_camera = True, enable_pressure= False)
     #controller.run('two-arm-json/grasp_straw_human.json')
-    controller.run('detect_one_arm.json')
+    controller.run('test_json/one_arm_grasp_rotate_release.json')
     # action_sequence = '/home/mamager/interbotix_ws/src/aloha/act-plus-plus/aloha_poser/two-arm-json/grasp_straw_human.json'
     # with open(action_sequence, 'r') as file:
     #     data = json.load(file)

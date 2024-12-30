@@ -1,0 +1,54 @@
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "side":null,
+        "args":{
+            "x":null,
+            "y":null,
+            "z":null,
+            "roll":null,
+            "pitch":null,
+            "target":"red_straw"
+        }
+    },
+    {
+        "type": "arm", 
+        "name": "grasp", 
+        "side": null,
+        "args": {
+            "x": "detect_result[\"red_straw\"][0]",
+            "y": "detect_result[\"red_straw\"][1]", 
+            "z": "detect_result[\"red_straw\"][2]", 
+            "roll": "detect_result[\"red_straw\"][3]",
+            "pitch": "detect_result[\"red_straw\"][4]",
+            "target": null
+            }
+    },
+    {
+        "type": "arm", 
+        "name": "set_pose", 
+        "side": null,
+        "args": {
+            "x": "detect_result[\"red_straw\"][0]+10",
+            "y": "detect_result[\"red_straw\"][1]+10", 
+            "z": "detect_result[\"red_straw\"][2]", 
+            "roll": "detect_result[\"red_straw\"][3]",
+            "pitch": "detect_result[\"red_straw\"][4]",
+            "target": null
+            }
+    },
+    {
+        "type": "arm", 
+        "name": "release", 
+        "side": null,
+        "args": {
+            "x": "detect_result[\"red_straw\"][0]",
+            "y": "detect_result[\"red_straw\"][1]", 
+            "z": "detect_result[\"red_straw\"][2]", 
+            "roll": "detect_result[\"red_straw\"][3]",
+            "pitch": "detect_result[\"red_straw\"][4]",
+            "target": null
+            }
+    }
+]

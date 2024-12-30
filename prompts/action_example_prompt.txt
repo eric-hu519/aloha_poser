@@ -1,15 +1,25 @@
 # Query: move to 5cm on top of the blue block.
+objects = ['blue_block']
 [
     {
         "type":"camera",
         "name":"detect",
+        "side": null,
+        "action_type": null,
         "args":{
-            "target":["blue_block"]
+            "x": null,
+            "y": null,
+            "z": null,
+            "roll": null,
+            "pitch": null,
+            "target": "blue_block"
         }
     },
     {
-        "type":"arm",
+        "type": "arm",
         "name": "set_pose",
+        "side": "detect_result["blue_block"]["suggested_side]",
+        "action_type": "move"
         "args":{
             "x": "detect_result["blue_block"][0]",
             "y": "detect_result["blue_block"][1]",
@@ -21,6 +31,7 @@
 ]
 
 # Query: move to 10cm in right to the computer
+objects = ['computer']
 [
     {
         "type":"camera",
@@ -183,11 +194,19 @@
 ]
 
 # Query: grasp the cup.
+objects = ['cup']
 [
     {
-        "type":"gripper",
-        "name":"close",
-        "args":"null"
+        "type": "arm",
+        "name": "grasp",
+        "side": "detect_result["cup"]["suggested_side"]"
+        "args":{
+            "x": "detect_result["cup"][0]",
+            "y": "detect_result["cup"][1]",
+            "z": "detect_result["cup"][2]",
+            "roll":detect_result["cup"][3],
+            "pitch":detect_result["cup"][4]
+        }
     }
 ]
 
