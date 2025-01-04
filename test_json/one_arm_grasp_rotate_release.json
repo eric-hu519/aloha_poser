@@ -27,14 +27,14 @@
     },
     {
         "type": "arm", 
-        "name": "set_pose", 
+        "name": "vertical_pose", 
         "side": null,
         "args": {
             "x": "detect_result[\"red_straw\"][0]",
             "y": "detect_result[\"red_straw\"][1]", 
             "z": "detect_result[\"red_straw\"][2]", 
-            "roll": "detect_result[\"red_straw\"][3]-80",
-            "pitch": "detect_result[\"red_straw\"][4]-80",
+            "roll": "detect_result[\"red_straw\"][3]",
+            "pitch": "detect_result[\"red_straw\"][4]",
             "target": null
             }
     },
@@ -58,7 +58,7 @@
         "args": {
             "x": "detect_result[\"plastic_cup\"][0]",
             "y": "detect_result[\"plastic_cup\"][1]", 
-            "z": "detect_result[\"plastic_cup\"][2]", 
+            "z": "detect_result[\"plastic_cup\"][2]+30", 
             "roll": "detect_result[\"plastic_cup\"][3]",
             "pitch": "detect_result[\"plastic_cup\"][4]",
             "target": null

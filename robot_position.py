@@ -40,15 +40,19 @@ def main():
         elif key == 'e':
             init_pose["z"] -= 0.05
         elif key == 'r':
-            init_pose["roll"] += 1.6
+            init_pose["roll"] += 0.1
         elif key == 'f':
-            init_pose["roll"] -= 1.6
+            init_pose["roll"] -= 0.1
         elif key == 't':
-            init_pose["pitch"] += 0.05
+            init_pose["pitch"] += 0.1
         elif key == 'g':
-            init_pose["pitch"] -= 0.05
+            init_pose["pitch"] -= 0.1
         elif key == 'y':
             init_pose["yaw"] += 0.785
+        elif key == 'h':
+            controller.close_gripper(init_pose,side=side)
+        elif key == 'j':
+            controller.open_gripper(init_pose,side=side)
         elif key == 'c':
             controller.sleep_pose({}, side)
             break

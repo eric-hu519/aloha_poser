@@ -1,32 +1,19 @@
-objects = ['blue block', 'red block']
+objects = ['blue_block', 'red block']
 # Query: grasp the blue block and put it on the red block.
-["move to 20cm on top of the blue block",
-"move to the blue block",
+["detect the blue block",
 "grasp the blue block",
-"move to 20cm on top of the blue block",
+"detect the red block",
 "move to 20cm on top of the red block",
-"open gripper"]
+"release the blue block"]
 # done
 
 objects = ['white cup', 'yellow ball']
 # Query: drop the yellow ball in the white cup.
-["move to 20cm on top of the yellow ball",
-"move to the yellow ball"
-"grasp the yellow ball",
-"move to 20cm on top of the yellow ball",
+["detect the yellow ball",
+"grasp the yellow ball"
+"detect the white cup",
 "move to 20cm on top of the white cup",
-"open gripper"]
-# done
-
-objects = ['tissue box', 'tissue', 'cup']
-# Query: Can you pass me a tissue and place it next to the cup and be aware of the cup?
-["move to 10cm on top of the tissue box",
-"move to tissue",
-"grasp the tissue",
-"move to 10cm on top of the tissue box ",
-"move to 10cm on top of the cup",
-"move to 20cm right to the cup",
-"open gripper"]
+"release the white cup"]
 # done
 
 objects = ['white cup','blue basin']

@@ -30,8 +30,8 @@ from utils.robot_utils import depth_circle_sampler
 from realsense_test_aloha import RealSenseCamera
 from utils.pressure_sensor import PressureSensor
 SCALE = 0.01
-STRAW_POS = [243,381,628,81,145]
-CUP_POS = [243,381,628,33,144]
+STRAW_POS = [243,490,628,81,20]
+CUP_POS = [180,450,628,33,144]
 
 # STRAW_POS = [465,367,628,33,145]
 # CUP_POS = [243,381,1093,81,144]
@@ -43,7 +43,7 @@ OFFSET_L = [0.030, -0.15, 0.2]
 OFFSET_R = [-0.28, 0.075, 0.25]
 DEFAULT_SIDE = 'left'
 GRIPPER_POSE_THRESHOLD = 60
-PREP_GRIPPER_POSE = [0.8, 0.785] #roll and pitch
+PREP_GRIPPER_POSE = [0.7, 1.2] #roll and pitch
 
 HOME_POSE = {'left': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0},
              'right': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0}}
@@ -85,6 +85,9 @@ class robot_controller:
         self.robot_status['right']['robot_pose'] = []
         self.detect_target['left'] = []
         self.detect_target['right'] = []
+        #action target is different from detect target, it is parsed from action sequence
+        self.action_target =  []
+        self.holding_obj = None
         self.enable_pressure = enable_pressure
         #init camera
         self.test_camera = test_camera
@@ -107,6 +110,27 @@ class robot_controller:
         #update robot status
         self.update_arm_position(side)
         
+    def restore_vertical(self, args, side):
+        """
+        旋转夹爪至竖直位置
+        """
+        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        args['roll'] = 0
+        args['pitch'] = 0
+        self.set_pose(args, side)
+        #update robot status
+        self.update_arm_position(side)
+    def restore_horizontal(self, args, side):
+        """
+        旋转夹爪至水平位置
+        """
+        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        
+        args['roll'] = 0.8
+        args['pitch'] = 0.785
+        self.set_pose(args, side)
+        #update robot status
+        self.update_arm_position(side)
     def grasp(self, args, side):
         """
         夹取目标API
@@ -121,7 +145,7 @@ class robot_controller:
         #close gripper
         self.close_gripper(args, side, type='grasp')
         #move up
-        args['z'] = args['z'] + 0.15
+        args['z'] = args['z'] + 0.2
         self.set_pose(args, side)
         #update robot status
         self.robot_status[side]['holding_status'] = True
@@ -131,12 +155,12 @@ class robot_controller:
         释放目标API
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        args['z'] = args['z'] - 0.1
+        args['z'] = args['z'] + 0.05
         self.set_pose(args, side)
         #open gripper
         self.open_gripper(args, side)
         #move up
-        args['z'] = args['z'] + 0.1
+        args['z'] = args['z'] + 0.05
         self.set_pose(args, side)
         #update robot status
         self.robot_status[side]['holding_status'] = False
@@ -461,6 +485,8 @@ class robot_controller:
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         bot.arm.set_ee_pose_components(**HOME_POSE[side])
+        #update robot status
+        self.update_arm_position(side)
 
     def sleep_pose(self,args, side):
         """
@@ -485,7 +511,9 @@ class robot_controller:
                 'home_pose': self.home_pose,
                 'sleep_pose': self.sleep_pose,
                 'grasp': self.grasp,
-                'release': self.release_obj
+                'release': self.release_obj,
+                'vertical_pose': self.restore_vertical,
+                'horizontal_pose': self.restore_horizontal
             }.get(name, None)
         elif actuator_type == 'gripper':
             return {
@@ -614,6 +642,8 @@ class robot_controller:
                 args, run_side, detect_target = self.parse_args(args,side)
             #assign side to operate when detect is not called
             func = self.get_function_by_name(actuator_type, name)
+            if detect_target is not None:
+                self.action_target.append(detect_target)
             self.logger.info(f"Running {actuator_type} {name} with args {args} for {run_side} arm")
             func(args, run_side)
             #update target position by arm position if grasp is called
@@ -621,11 +651,17 @@ class robot_controller:
                 assert detect_target is not None, "Detect target is not assigned."
                 if name == 'grasp':
                     self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
+                    self.holding_obj = detect_target
                 #if holding, target coordinate changes with robot arm
-                elif name == 'set_pose' and self.robot_status[run_side]['holding_status'] == True:
+                elif name == 'set_pose' and self.robot_status[run_side]['holding_status'] == True and self.holding_obj == detect_target:
+                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
+                elif name == 'vertical_pose' and self.robot_status[run_side]['holding_status'] == True and self.holding_obj == detect_target:
+                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
+                elif name == 'horizontal_pose' and self.robot_status[run_side]['holding_status'] == True and self.holding_obj == detect_target:
                     self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
                 elif name == 'release':
-                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-2]
+                    self.detect_result[self.holding_obj][run_side] = self.robot_status[run_side]['robot_pose'][-2]
+                    self.holding_obj = None
                     
         
 
