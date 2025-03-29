@@ -5,3 +5,7 @@ data_record.txt
 log.txt
 api_key.json
 calib_result_*/
+*.run
+anygrasp_sdk/
+*.tar
+*.wav

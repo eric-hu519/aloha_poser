@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>语音转文字应用</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        #output {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        #chinese-text {
+            color: blue;
+        }
+        #english-text {
+            color: green;
+        }
+        .action-buttons {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🎙️ 语音转文字 - 中文转英文</h1>
+
+<button id="recordButton">🎙️ 开始录音</button>
+<button id="stopButton" disabled>⏹️ 停止录音</button>
+
+<div id="output">
+    <p id="chinese-text">📝 中文：等待录音结果...</p>
+    <p id="english-text">📚 英文：等待翻译结果...</p>
+</div>
+
+<div class="action-buttons" id="actionButtons" style="display: none;">
+    <button id="confirmButton">✅ 确认</button>
+    <button id="cancelButton">❌ 取消</button>
+    <button id="retryButton">🔁 重试</button>
+</div>
+
+<script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let currentOriginalText = "";
+    let currentTranslatedText = "";
+
+    // 录音按钮点击事件
+    document.getElementById("recordButton").addEventListener("click", async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.wav');
+
+            // 上传音频到服务器
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                currentOriginalText = result.original_text;
+                currentTranslatedText = result.translated_text;
+
+                document.getElementById("chinese-text").innerText = `📝 中文：${result.original_text}`;
+                document.getElementById("english-text").innerText = `📚 英文：${result.translated_text}`;
+                document.getElementById("actionButtons").style.display = "block";
+            } else {
+                document.getElementById("output").innerHTML = `❗ 出错: ${result.error}`;
+            }
+
+            // 禁用录音和停止按钮
+            document.getElementById("recordButton").disabled = true;
+            document.getElementById("stopButton").disabled = true;
+        };
+
+        mediaRecorder.start();
+        document.getElementById("recordButton").disabled = true;
+        document.getElementById("stopButton").disabled = false;
+    });
+
+    // 停止录音按钮
+    document.getElementById("stopButton").addEventListener("click", () => {
+        mediaRecorder.stop();
+        document.getElementById("recordButton").disabled = true;
+        document.getElementById("stopButton").disabled = true;
+    });
+
+    // 确认按钮 - 保存翻译到 log.txt
+    document.getElementById("confirmButton").addEventListener("click", async () => {
+        const response = await fetch('/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                original_text: currentOriginalText,
+                translated_text: currentTranslatedText
+            })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            alert("✅ 翻译结果已保存！");
+        } else {
+            alert(`❗ 出错: ${result.error}`);
+        }
+        resetUI();
+    });
+
+    // 取消按钮 - 不保存结果
+    document.getElementById("cancelButton").addEventListener("click", () => {
+        alert("❌ 已取消，不保存结果。");
+        resetUI();
+    });
+
+    // 重试按钮 - 重新录音
+    // 重试按钮 - 重新录音
+    document.getElementById("retryButton").addEventListener("click", async () => {
+        resetUI();
+
+        // 直接开始录音
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.wav');
+
+            // 上传音频到服务器
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            if (response.ok) {
+                currentOriginalText = result.original_text;
+                currentTranslatedText = result.translated_text;
+
+                document.getElementById("chinese-text").innerText = `📝 中文：${result.original_text}`;
+                document.getElementById("english-text").innerText = `📚 英文：${result.translated_text}`;
+                document.getElementById("actionButtons").style.display = "block";
+            } else {
+                document.getElementById("output").innerHTML = `❗ 出错: ${result.error}`;
+            }
+
+            // 禁用录音和停止按钮
+            document.getElementById("recordButton").disabled = true;
+            document.getElementById("stopButton").disabled = true;
+        };
+
+        mediaRecorder.start();
+        document.getElementById("recordButton").disabled = true;
+        document.getElementById("stopButton").disabled = false;
+    });
+
+    // 重置界面
+    function resetUI() {
+        document.getElementById("chinese-text").innerText = "📝 中文：等待录音结果...";
+        document.getElementById("english-text").innerText = "📚 英文：等待翻译结果...";
+        document.getElementById("actionButtons").style.display = "none";
+        currentOriginalText = "";
+        currentTranslatedText = "";
+        audioChunks = []; // 清除音频缓存
+        document.getElementById("recordButton").disabled = false;
+        document.getElementById("stopButton").disabled = true;
+    }
+</script>
+
+</body>
+</html>

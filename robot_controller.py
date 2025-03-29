@@ -126,8 +126,8 @@ class robot_controller:
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         
-        args['roll'] = 0.8
-        args['pitch'] = 0.785
+        args['roll'] = 0.9
+        args['pitch'] = 1.2
         self.set_pose(args, side)
         #update robot status
         self.update_arm_position(side)

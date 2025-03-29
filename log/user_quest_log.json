@@ -1,0 +1,15 @@
+[
+    {
+        "quest_ID":"1231231",
+        "quest_content":"123321",
+        "steps":[
+            "move to 20cm on top of the red straw", 
+            "move to the red straw", 
+            "grasp the red straw", 
+            "move to 20cm on top of the red straw", 
+            "move to 20cm on top of the cup", 
+            "Rotate the wrist 90 counterclockwise",
+            "move to 30cm on top of the cup", 
+            "open gripper"]
+    }
+]

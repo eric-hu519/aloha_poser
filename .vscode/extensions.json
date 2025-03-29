@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "donjayamanne.python-environment-manager"
+        "donjayamanne.python-environment-manager",
+        "github.copilot-chat"
     ]
 }

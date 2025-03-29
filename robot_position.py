@@ -1,3 +1,4 @@
+import numpy as np
 from robot_controller import robot_controller
 from sympy import true
 import time
@@ -16,29 +17,39 @@ def main():
     init_pose = {}
     init_pose["x"] = float(0.25)
     init_pose["y"] = float(0)
-    init_pose["z"] = float(0.350)
-    init_pose["roll"] = 0
-    init_pose["pitch"] = 0
+    init_pose["z"] = float(0.35)
+    init_pose["roll"] = np.deg2rad(0)
+    init_pose["pitch"] = np.deg2rad(0)
+    init_pose["yaw"] = np.deg2rad(0)
     controller.set_pose(init_pose, side)
     controller.open_gripper(init_pose,side=side)
     controller.close_gripper(init_pose,side=side)
+    
+    init_pose["x"] = 0.17629263+0.07
+    init_pose["y"] = -0.30080539+0.14
+    init_pose["z"] = -0.082287+0.25
+    init_pose["roll"] = np.deg2rad(0)
+    init_pose["pitch"] = np.deg2rad(79.118520)
+    init_pose["yaw"] = np.deg2rad(0)
+    controller.set_pose(init_pose, side)
+    controller.open_gripper(init_pose,side=side)
     #use keyboard to adjust the position
     #w will add x, s will minus x, a will add y, d will minus y, q will add z, e will minus z
     while True:
         key = input("Please input the key:")
         org_pose = init_pose.copy()
         if key == 'w':
-            init_pose["x"] += 0.05
+            init_pose["x"] += 0.01
         elif key == 's':
-            init_pose["x"] -= 0.05
+            init_pose["x"] -= 0.01
         elif key == 'a':
-            init_pose["y"] += 0.05
+            init_pose["y"] += 0.01
         elif key == 'd':
-            init_pose["y"] -= 0.05
+            init_pose["y"] -= 0.01
         elif key == 'q':
-            init_pose["z"] += 0.05
+            init_pose["z"] += 0.01
         elif key == 'e':
-            init_pose["z"] -= 0.05
+            init_pose["z"] -= 0.01
         elif key == 'r':
             init_pose["roll"] += 0.1
         elif key == 'f':
@@ -48,7 +59,7 @@ def main():
         elif key == 'g':
             init_pose["pitch"] -= 0.1
         elif key == 'y':
-            init_pose["yaw"] += 0.785
+            init_pose["yaw"] += 0.1
         elif key == 'h':
             controller.close_gripper(init_pose,side=side)
         elif key == 'j':

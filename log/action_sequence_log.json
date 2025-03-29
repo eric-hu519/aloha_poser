@@ -1,0 +1,72 @@
+[
+    {
+        "quest_ID":"123321",
+        "step_ID":"0",
+        "step_quest":"move to .....",
+        "actions":[
+            {
+                "type":"camera",
+                "name":"detect",
+                "side":null,
+                "action_type": null,
+                "args":{
+                    "x":null,
+                    "y":null,
+                    "z":null,
+                    "roll":null,
+                    "pitch":null,
+                    "target":"red_straw"
+                }
+            },
+            {
+                    "type": "arm", 
+                    "name": "set_pose", 
+                    "side": "detect_result[\"red_straw\"][\"suggested_side\"]",
+                    "action_type":"move",
+                    "args": {
+                        "x": "detect_result[\"red_straw\"][0]",
+                        "y": "detect_result[\"red_straw\"][1]", 
+                        "z": "detect_result[\"red_straw\"][2]+10", 
+                        "roll": "detect_result[\"red_straw\"][3]",
+                        "pitch": "detect_result[\"red_straw\"][4]",
+                        "target": null
+                        }
+            }
+        ]
+    },
+    {
+        "quest_ID":"123321",
+        "step_ID":"1",
+        "step_quest":"move to .....",
+        "actions":[
+            {
+                "type":"camera",
+                "name":"detect",
+                "side":null,
+                "action_type": null,
+                "args":{
+                    "x":null,
+                    "y":null,
+                    "z":null,
+                    "roll":null,
+                    "pitch":null,
+                    "target":"red_straw"
+                }
+            },
+            {
+                    "type": "arm", 
+                    "name": "set_pose", 
+                    "side": "detect_result[\"red_straw\"][\"suggested_side\"]",
+                    "action_type":"move",
+                    "args": {
+                        "x": "detect_result[\"red_straw\"][0]",
+                        "y": "detect_result[\"red_straw\"][1]", 
+                        "z": "detect_result[\"red_straw\"][2]+10", 
+                        "roll": "detect_result[\"red_straw\"][3]",
+                        "pitch": "detect_result[\"red_straw\"][4]",
+                        "target": null
+                        }
+            }
+        ]
+    }
+]

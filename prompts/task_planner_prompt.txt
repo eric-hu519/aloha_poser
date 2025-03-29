@@ -2,6 +2,7 @@ objects = ['blue_block', 'red block']
 # Query: grasp the blue block and put it on the red block.
 ["detect the blue block",
 "grasp the blue block",
+"restore gripper to vertical position",
 "detect the red block",
 "move to 20cm on top of the red block",
 "release the blue block"]
@@ -65,6 +66,5 @@ object = ['plastic cup']
 "grasp the plasic cup",
 "move to 20cm on top of the plastic cup",
 "move to 20cm right to the original place of plastic cup",
-"open gripper"
-]
+"open gripper"]
 #done

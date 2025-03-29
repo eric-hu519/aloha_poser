@@ -14,7 +14,7 @@
                         },
                         "name":{
                             "type":"string",
-                            "enum":["set_pose","open","close","detect"]
+                            "enum":["set_pose","open","close","detect","grasp","vertical_pose","horizontal_pose","release"]
                         },
                         "args":{
                             "type":"object",

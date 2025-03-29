@@ -6,6 +6,7 @@ from openai import OpenAI
 from typing import List, Union
 import json
 import jsonschema
+import uuid
 #import hashlib
 from sympy import N
 from robot_controller import robot_controller
@@ -64,6 +65,93 @@ class LMP:
         with open(file_path, 'r') as file:
             prompts = file.read().strip()
         return prompts
+
+class Logging_Handler:
+    def __init__(self):
+        self.quest_log_file_path = "log/user_quest_log.json"
+        self.action_log_file_path = "log/action_sequence_log.json"
+        if not os.path.exists(self.quest_log_file_path):
+            with open(self.quest_log_file_path, 'w') as file:
+                json.dump([], file)
+        if not os.path.exists(self.action_log_file_path):
+            with open(self.action_log_file_path, 'w') as file:
+                json.dump([], file)
+        self.temp_action = []
+    
+    def log_checker(self, id: str)-> bool:
+        with open(self.quest_log_file_path, 'r') as file:
+            logs = json.load(file)
+            for log in logs:
+                if log.get('quest_ID') == id:
+                    return True
+        return False
+    
+    def log_task_reasoning(self, user_quest:str, task_reasoning:dict):
+        with open(self.quest_log_file_path, 'r') as file:
+            logs = json.load(file)
+        if not self.log_checker(user_quest):
+            # Generate a unique ID for the quest
+            quest_id = str(uuid.uuid1())
+            logs.append({
+                'quest_ID': quest_id,
+                'quest_content': user_quest,
+                'steps': task_reasoning.get('steps', []),
+            })
+            with open(self.quest_log_file_path, 'w') as file:
+                json.dump(logs, file)
+                print(f"Task reasoning for quest '{user_quest}' logged with ID: {quest_id}")
+        else:
+            print(f"Quest '{user_quest}' already logged, skipping...")
+        return quest_id
+    
+    #save the action sequence to temp local variable
+    def temp_action_logger(self, quest_id: str, step_id: str, step_quest:str, action: list):
+        temp_action = {
+            'quest_ID': quest_id,
+            'step_ID': step_id,
+            'step_quest': step_quest,
+            'action': action
+        }
+        self.temp_action.append(temp_action)
+        print(f"Temporary action logged for quest ID '{quest_id}' and step ID '{step_id}'.")
+
+    def log_action_sequence(self, quest_id: str, action_sequence: List[dict]):
+        with open(self.action_log_file_path, 'r') as file:
+            logs = json.load(file)
+        if len(self.temp_action) > 0:
+            for action in self.temp_action:
+                if action.get('quest_ID') == quest_id:
+                    logs.append({
+                        'quest_ID': action.get('quest_ID'),
+                        'step_ID': action.get('step_ID'),
+                        'step_quest': action.get('step_quest'),
+                        'action_sequence': action_sequence
+                    })
+            with open(self.action_log_file_path, 'w') as file:
+                json.dump(logs, file)
+                print(f"Action sequence for quest ID '{quest_id}' logged.")
+            self.temp_action = []  # Clear the temporary actions after logging
+        else:
+            raise ValueError(f"No temporary actions found for quest ID '{quest_id}'. Please log actions before saving the sequence.")
+    def clear_temp_logs(self):
+        self.temp_action = []
+        print("Logs cleared.")
+
+    def get_quest_hist(self, quest_id: str) -> List[dict]:
+        with open(self.quest_log_file_path, 'r') as file:
+            logs = json.load(file)
+            for log in logs:
+                if log.get('quest_ID') == quest_id:
+                    return log.get('steps', [])
+        return []
+    
+    def get_action_hist(self, quest_id: str) -> List[dict]:
+        with open(self.action_log_file_path, 'r') as file:
+            logs = json.load(file)
+            for log in logs:
+                if log.get('quest_ID') == quest_id:
+                    return log.get('action_sequence', [])
+        return []
 
 def main():
     lmp = LMP(api_key=API_KEY)

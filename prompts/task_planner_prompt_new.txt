@@ -1,0 +1,171 @@
+#1单个物体操作
+#1.1从下(Down)到上(Up)的垂直抓取
+objects = [‘white_block’]
+Query: Move the white_block from 10cm Down to 30cm Up
+[“detect the white_block”,
+“set_pose to 20cm on top of white_block”,
+“grasp the white_block”,
+“set_pose to 10cm down the white_block“,
+“set_pose to 20cm up the white_block”,
+“release the white_block”,
+“home_pose”]
+#done
+
+#1.2从左(Left)移到右(Right)，并水平抓取
+objects = [‘box’]
+Query: Move the box from 10cm on the left side to 30cm on the right side.
+[“detect the box”,
+“set_pose to 20cm on top of box”,
+“grasp the box”,
+“set_pose to 10cm on the left side of the box”,
+“set_pose to 30cm on the right side of the box”,
+"open gripper",
+“home_pose”]
+#done
+
+#1.3 沿对角线(Diagonal)移动
+objects = [‘toy’]
+Query: Pick the toy and move it 15cm diagonally
+[“detect the toy”,
+“set_pose to 20cm above the toy”,
+“grasp the toy”,
+“set_trajectory Diagonal 15cm”,
+“release the toy”,
+“home_pose”]
+#done
+
+#1.4 从前(Front)移到后(Back)
+objects = [‘metal_screw’]
+Query: Grab the metal_screw at the front and place it at the back
+[“detect the metal_screw”,
+“set_pose to 20cm on top of white_block”,
+“set_pose 10cm Front the metal_screw”,
+“grasp the metal_screw”,
+“set_pose 10cm Front the metal_screw”,
+“set_pose 10cm Back the table”,
+“release the white_block”,
+“home_pose”]
+#done
+
+#1.5 旋转(Clockwise / Counterclockwise)
+objects = [‘wooden_plate’]
+Query: Rotate the wooden_plate 90° clockwise
+[“detect the wooden_plate”,
+“set_pose to 20cm above the wooden_plate”,
+“grasp the wooden_plate”,
+“set_joint_pose rotating wrist 90° clockwise”,
+“release the wooden_plate”,
+“home_pose”]
+#done
+
+#1.6以 vertical_pose 抓取并移动物体
+objects = [‘mug’]
+Query: Grasp the mug in vertical pose and move it 15cm to the left.
+[“detect the mug”,
+“vertical_pose”, 
+“set_pose to 20cm above the mug”,
+“grasp the mug”,
+“set_pose to 15cm left the mug”, 
+“release the mug”,
+“home_pose”]
+#done
+
+#1.7以 horizontal_pose 抓取后，使用 set_joint_pose 旋转
+Query: Pick up the book in a horizontal pose, rotate it 45° clockwise with set_joint_pose.
+[“detect the book”,
+“horizontal_pose”,                
+“set_pose to 20cm above the book”,
+“grasp the book”,
+“set_joint_pose rotating wrist 45° clockwise”,    
+“release the book”,
+“home_pose”]
+#done
+
+#2. 双物体操作
+
+#2.1 将一个物体放到另一个物体的顶部(Top)
+objects = [‘blue_block’, ‘red_block’]
+Query: Place the blue_block on top of the red_block
+[“detect the blue_block”,
+“set_pose to 20cm on top of blue_block”,
+“grasp the blue_block”,
+“detect the red_block”,
+“set_pose to 20cm on top of the red_block”,
+“release the blue_block”,
+“home_pose”]
+#done
+
+
+#2.2 将一个物体放到另一个物体的右侧(Right Side)
+objects = [‘small_object’, ‘large_object’]
+Query: Place the small_object on the right side of the large_object
+[“detect the small_object”,
+“set_pose to 20cm on top of small_object”,
+“grasp the small_object”,
+“detect the large_object”,
+“set_pose to 20cm on the right side of the box”,
+"open gripper",
+“home_pose”]
+#done
+
+#2.7 将物体从内部 (Inside) 移到外部 (Outside)，并使用 set_trajectory (Diagonal)
+objects = [‘green_toy’, ‘container_box’]
+Query: Move the green_toy from inside the container_box to the outside
+[“detect the green_toy”,
+“set_pose to 20cm on top of the green_toy”,
+“grasp the green_toy”,
+“set_pose to 20cm on top of the green_toy”, 
+“detect the green_toy”,
+“set_pose to 20cm on the right side of the green_toy”,
+“release the green_toy”,
+“home_pose”]
+#done
+
+2.3 将一个物体放在另一个物体的后方(Behind)
+objects = [‘cup’, ‘box’]
+Query: Place the cup behind the box
+[“detect the cup”,
+“set_pose 20cm above the cup”,
+“grasp the cup”,
+“detect the box”,
+“set_pose 10cm behind the box”,
+"open gripper",
+“home_pose”]
+#done
+
+#2.4 将物体放进(Inside)另一个物体
+objects = [‘small_object’, ‘container_object’]
+Query: Place the small_object inside the container_object
+[“detect the small_object”,
+“set_pose 20cm above the small_object”,
+“grasp the small_object”,
+“detect the container_object”,
+“set_pose 20cm on top of the container_object”,
+“release the small_object inside the container_object”,
+“home_pose”]
+#done
+
+#2.5 倒水：从杯子到盆子
+objects = [‘white_cup’, ‘blue_basin’]
+Query: Pour water from the white_cup into the blue_basin
+[“detect the white_cup”,
+“vertical_pose”,
+“set_pose to 20cm on top of the white_cup”,
+“grasp the white_cup”,
+“set_pose to 20cm on top of the blue_basin”,
+“horizontal_pose”,
+“vertical_pose”]
+#done
+
+#3. 综合示例
+#3.1 将 plastic_cup 从左侧(Left)移动到右侧(Right)，并旋转 90°(Clockwise)
+objects = [‘plastic_cup’]
+Query: Move the plastic_cup from left to right, rotating 90° clockwise
+[“detect the plastic_cup”,
+“vertical_pose”,
+“set_pose to 20cm above the plastic_cup”,
+“grasp the plastic_cup”,
+“set_pose to 10cm on the left side of the plastic_cup”,
+“set_joint_pose rotating wrist 90° clockwise”,
+“release the plastic_cup”,
+“sleep_pose”]
