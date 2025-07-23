@@ -1,0 +1,28 @@
+[
+    {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "x":null,
+            "y":null,
+            "z":null,
+            "roll":null,
+            "pitch":null,
+            "yaw":null,
+            "target":"yellow_block"
+        }
+    },
+        {
+        "type":"camera",
+        "name":"detect",
+        "args":{
+            "x":null,
+            "y":null,
+            "z":null,
+            "roll":null,
+            "pitch":null,
+            "yaw":null,
+            "target":"white_cup"
+        }
+    }
+]

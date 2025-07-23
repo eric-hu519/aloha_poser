@@ -1,72 +1,541 @@
 [
     {
-        "quest_ID":"123321",
-        "step_ID":"0",
-        "step_quest":"move to .....",
-        "actions":[
+        "quest_ID": "0",
+        "step_ID": "0",
+        "quest_content": "detect the blue block",
+        "actions": [
             {
-                "type":"camera",
-                "name":"detect",
-                "side":null,
+                "type": "camera",
+                "name": "detect",
                 "action_type": null,
-                "args":{
-                    "x":null,
-                    "y":null,
-                    "z":null,
-                    "roll":null,
-                    "pitch":null,
-                    "target":"red_straw"
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": "blue_block"
                 }
-            },
-            {
-                    "type": "arm", 
-                    "name": "set_pose", 
-                    "side": "detect_result[\"red_straw\"][\"suggested_side\"]",
-                    "action_type":"move",
-                    "args": {
-                        "x": "detect_result[\"red_straw\"][0]",
-                        "y": "detect_result[\"red_straw\"][1]", 
-                        "z": "detect_result[\"red_straw\"][2]+10", 
-                        "roll": "detect_result[\"red_straw\"][3]",
-                        "pitch": "detect_result[\"red_straw\"][4]",
-                        "target": null
-                        }
             }
         ]
     },
     {
-        "quest_ID":"123321",
-        "step_ID":"1",
-        "step_quest":"move to .....",
-        "actions":[
+        "quest_ID": "0",
+        "step_ID": "1",
+        "quest_content": "move to 10cm on top of the blue block",
+        "actions": [
             {
-                "type":"camera",
-                "name":"detect",
-                "side":null,
-                "action_type": null,
-                "args":{
-                    "x":null,
-                    "y":null,
-                    "z":null,
-                    "roll":null,
-                    "pitch":null,
-                    "target":"red_straw"
+                "type": "arm",
+                "name": "set_pose",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"blue_block\"][0]",
+                    "y": "detect_result[\"blue_block\"][1]",
+                    "z": "detect_result[\"blue_block\"][2]+10",
+                    "roll": "detect_result[\"blue_block\"][3]",
+                    "pitch": "detect_result[\"blue_block\"][4]",
+                    "yaw": "detect_result[\"blue_block\"][5]",
+                    "target": null
                 }
-            },
-            {
-                    "type": "arm", 
-                    "name": "set_pose", 
-                    "side": "detect_result[\"red_straw\"][\"suggested_side\"]",
-                    "action_type":"move",
-                    "args": {
-                        "x": "detect_result[\"red_straw\"][0]",
-                        "y": "detect_result[\"red_straw\"][1]", 
-                        "z": "detect_result[\"red_straw\"][2]+10", 
-                        "roll": "detect_result[\"red_straw\"][3]",
-                        "pitch": "detect_result[\"red_straw\"][4]",
-                        "target": null
-                        }
             }
         ]
+    },
+    {
+        "quest_ID": "0",
+        "step_ID": "2",
+        "quest_content": "grasp the blue block",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "grasp",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"blue_block\"][0]",
+                    "y": "detect_result[\"blue_block\"][1]",
+                    "z": "detect_result[\"blue_block\"][2]",
+                    "roll": "detect_result[\"blue_block\"][3]",
+                    "pitch": "detect_result[\"blue_block\"][4]",
+                    "yaw": "detect_result[\"blue_block\"][5]",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "0",
+        "step_ID": "3",
+        "quest_content": "move up 20cm",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": "move",
+                "args": {
+                    "x": "0",
+                    "y": "0",
+                    "z": "10",
+                    "roll": "0",
+                    "pitch": "0",
+                    "yaw": "0",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "0",
+        "step_ID": "4",
+        "quest_content": "roll over for 180 degrees",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": "move",
+                "args": {
+                    "x": "0",
+                    "y": "0",
+                    "z": "0",
+                    "roll": "180",
+                    "pitch": "0",
+                    "yaw": "0",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "1",
+        "step_ID": "0",
+        "quest_content": "detect the red block",
+        "actions": [
+            {
+                "type": "camera",
+                "name": "detect",
+                "action_type": null,
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": "red_block"
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "1",
+        "step_ID": "1",
+        "quest_content": "move to 10cm on top of the red block",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_pose",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"red_block\"][0]",
+                    "y": "detect_result[\"red_block\"][1]",
+                    "z": "detect_result[\"red_block\"][2]+10",
+                    "roll": "detect_result[\"red_block\"][3]",
+                    "pitch": "detect_result[\"red_block\"][4]",
+                    "yaw": "detect_result[\"red_block\"][5]",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "1",
+        "step_ID": "2",
+        "quest_content": "grasp the red block",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "grasp",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"red_block\"][0]",
+                    "y": "detect_result[\"red_block\"][1]",
+                    "z": "detect_result[\"red_block\"][2]",
+                    "roll": "detect_result[\"red_block\"][3]",
+                    "pitch": "detect_result[\"red_block\"][4]",
+                    "yaw": "detect_result[\"red_block\"][5]",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "1",
+        "step_ID": "3",
+        "quest_content": "move left 5cm",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": "move",
+                "args": {
+                    "x": "0",
+                    "y": "5",
+                    "z": "0",
+                    "roll": "0",
+                    "pitch": "0",
+                    "yaw": "0",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "1",
+        "step_ID": "4",
+        "quest_content": "detect the white cup",
+        "actions": [
+            {
+                "type": "camera",
+                "name": "detect",
+                "action_type": null,
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": "white_cup"
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "1",
+        "step_ID": "5",
+        "quest_content": "release the red block",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "release",
+                "action_type": "move",
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "2",
+        "step_ID": "0",
+        "quest_content": "detect the screwdriver",
+        "actions": [
+            {
+                "type": "camera",
+                "name": "detect",
+                "action_type": null,
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": "screwdriver"
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "2",
+        "step_ID": "1",
+        "quest_content": "move back 5cm",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": null,
+                "args": {
+                    "x": "5",
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "2",
+        "step_ID": "2",
+        "quest_content": "move front 10cm",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": null,
+                "args": {
+                    "x": "-10",
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "2",
+        "step_ID": "3",
+        "quest_content": "rotate the gripper 90 degrees up in pitch angle",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": null,
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": "90",
+                    "yaw": null,
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "2",
+        "step_ID": "4",
+        "quest_content": "rotate the gripper 90 degrees down in pitch angle",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "action_type": null,
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": "-90",
+                    "yaw": null,
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "2",
+        "step_ID": "5",
+        "quest_content": "move 10cm left to the bowl",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_pose",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"bowl\"][0]",
+                    "y": "detect_result[\"bowl\"][1]+5",
+                    "z": "detect_result[\"bowl\"][2]",
+                    "roll": "detect_result[\"bowl\"][3]",
+                    "pitch": "detect_result[\"bowl\"][4]",
+                    "yaw": "detect_result[\"bowl\"][5]",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "3",
+        "step_ID": "0",
+        "quest_content": "move 8cm right to the bowl",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_pose",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"bowl\"][0]",
+                    "y": "detect_result[\"bowl\"][1]-8",
+                    "z": "detect_result[\"bowl\"][2]",
+                    "roll": "detect_result[\"bowl\"][3]",
+                    "pitch": "detect_result[\"bowl\"][4]",
+                    "yaw": "detect_result[\"bowl\"][5]",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "quest_ID": "3",
+        "step_ID": "1",
+        "quest_content": "move 3cm back to the bowl",
+        "actions": [
+            {
+                "type": "arm",
+                "name": "set_pose",
+                "action_type": "move",
+                "args": {
+                    "x": "detect_result[\"bowl\"][0]+3",
+                    "y": "detect_result[\"bowl\"][1]",
+                    "z": "detect_result[\"bowl\"][2]",
+                    "roll": "detect_result[\"bowl\"][3]",
+                    "pitch": "detect_result[\"bowl\"][4]",
+                    "yaw": "detect_result[\"bowl\"][5]",
+                    "target": null
+                }
+            }
+        ]
+    },
+    {
+        "step_ID": "0",
+        "quest_content": "detect the pen",
+        "action": [
+            {
+                "type": "camera",
+                "name": "detect",
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": "pen"
+                }
+            }
+        ],
+        "quest_ID": "11"
+    },
+    {
+        "step_ID": "1",
+        "quest_content": "move to 10cm on top of the pen",
+        "action": [
+            {
+                "type": "arm",
+                "name": "set_pose",
+                "args": {
+                    "x": "detect_result[\"pen\"][0]",
+                    "y": "detect_result[\"pen\"][1]",
+                    "z": "detect_result[\"pen\"][2]+10",
+                    "roll": "detect_result[\"pen\"][3]",
+                    "pitch": "detect_result[\"pen\"][4]",
+                    "yaw": "detect_result[\"pen\"][5]",
+                    "target": null
+                }
+            }
+        ],
+        "quest_ID": "11"
+    },
+    {
+        "step_ID": "2",
+        "quest_content": "grasp the pen",
+        "action": [
+            {
+                "type": "arm",
+                "name": "grasp",
+                "args": {
+                    "x": "detect_result[\"pen\"][0]",
+                    "y": "detect_result[\"pen\"][1]",
+                    "z": "detect_result[\"pen\"][2]",
+                    "roll": "detect_result[\"pen\"][3]",
+                    "pitch": "detect_result[\"pen\"][4]",
+                    "yaw": "detect_result[\"pen\"][5]",
+                    "target": null
+                }
+            }
+        ],
+        "quest_ID": "11"
+    },
+    {
+        "step_ID": "3",
+        "quest_content": "move up 20cm",
+        "action": [
+            {
+                "type": "arm",
+                "name": "set_trajectory",
+                "args": {
+                    "x": "0",
+                    "y": "0",
+                    "z": "20",
+                    "roll": "0",
+                    "pitch": "0",
+                    "yaw": "0",
+                    "target": null
+                }
+            }
+        ],
+        "quest_ID": "11"
+    },
+    {
+        "step_ID": "4",
+        "quest_content": "detect the cup",
+        "action": [
+            {
+                "type": "camera",
+                "name": "detect",
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": "cup"
+                }
+            }
+        ],
+        "quest_ID": "11"
+    },
+    {
+        "step_ID": "5",
+        "quest_content": "move to 20cm on top of the cup",
+        "action": [
+            {
+                "type": "arm",
+                "name": "set_pose",
+                "args": {
+                    "x": "detect_result[\"cup\"][0]",
+                    "y": "detect_result[\"cup\"][1]",
+                    "z": "detect_result[\"cup\"][2]+20",
+                    "roll": "detect_result[\"cup\"][3]",
+                    "pitch": "detect_result[\"cup\"][4]",
+                    "yaw": "detect_result[\"cup\"][5]",
+                    "target": null
+                }
+            }
+        ],
+        "quest_ID": "11"
+    },
+    {
+        "step_ID": "6",
+        "quest_content": "release the pen",
+        "action": [
+            {
+                "type": "arm",
+                "name": "release",
+                "args": {
+                    "x": null,
+                    "y": null,
+                    "z": null,
+                    "roll": null,
+                    "pitch": null,
+                    "yaw": null,
+                    "target": null
+                }
+            }
+        ],
+        "quest_ID": "11"
     }
 ]

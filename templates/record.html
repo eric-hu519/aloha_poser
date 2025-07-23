@@ -26,6 +26,30 @@
         .action-buttons {
             margin-top: 20px;
         }
+        #taskResult {
+            margin-top: 30px;
+            text-align: left;
+            display: inline-block;
+            width: 80%;
+            white-space: pre-wrap;
+        }
+        table {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
     </style>
 </head>
 <body>
@@ -44,6 +68,32 @@
     <button id="confirmButton">✅ 确认</button>
     <button id="cancelButton">❌ 取消</button>
     <button id="retryButton">🔁 重试</button>
+</div>
+
+<!-- 添加使用缓存复选框 -->
+<div>
+    <label>
+        <input type="checkbox" id="useCachedCheckbox"> 使用缓存数据
+    </label>
+</div>
+
+<!-- 修改后的任务结果展示 -->
+<div id="taskResult" style="display: none;">
+    <h2>📚 任务分解与动作生成结果</h2>
+    <div id="taskTableContainer">
+        <table id="taskTable" border="1" cellspacing="0" cellpadding="5">
+            <thead>
+                <tr>
+                    <th>步骤</th>
+                    <th>任务描述</th>
+                    <th>动作列表</th>
+                </tr>
+            </thead>
+            <tbody id="taskTableBody"></tbody>
+        </table>
+    </div>
+    <button id="confirmTaskButton">✅ 确认保存</button>
+    <button id="cancelTaskButton">❌ 取消</button>
 </div>
 
 <script>
@@ -101,76 +151,137 @@
         document.getElementById("stopButton").disabled = true;
     });
 
-    // 确认按钮 - 保存翻译到 log.txt
+    // 确认按钮 - 直接调用 processUserQuery 处理翻译结果
     document.getElementById("confirmButton").addEventListener("click", async () => {
-        const response = await fetch('/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                original_text: currentOriginalText,
-                translated_text: currentTranslatedText
-            })
-        });
+        document.getElementById("taskTableBody").innerHTML = "<tr><td colspan='3'>⌛ 正在处理请求中...</td></tr>";
+        document.getElementById("taskResult").style.display = "block";
+        processUserQuery(currentOriginalText);
+    });
 
-        const result = await response.json();
-        if (response.ok) {
-            alert("✅ 翻译结果已保存！");
-        } else {
-            alert(`❗ 出错: ${result.error}`);
+    // 处理任务分解
+    async function processUserQuery(userQuery) {
+        const useCached = document.getElementById('useCachedCheckbox').checked;
+
+        try {
+            const response = await fetch('/process_query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_query: userQuery, use_cached: useCached })
+            });
+
+            const result = await response.json();
+            if (response.ok && result.success) {
+                displayTaskResults(result.result);
+            } else {
+                document.getElementById('taskTableBody').innerHTML = `<tr><td colspan="3">❗ 出错: ${result.error}</td></tr>`;
+                document.getElementById('taskResult').style.display = "block";
+            }
+        } catch (error) {
+            document.getElementById('taskTableBody').innerHTML = `<tr><td colspan="3">❗ 请求失败: ${error.message}</td></tr>`;
+            document.getElementById('taskResult').style.display = "block";
         }
+    }
+
+    // 优化后的任务结果显示函数
+    function displayTaskResults(taskResults) {
+        const taskTableBody = document.getElementById('taskTableBody');
+        taskTableBody.innerHTML = ""; // 清空之前的内容
+
+    taskResults.forEach((task, index) => {
+        const row = document.createElement('tr');
+
+        // 步骤编号
+        const stepCell = document.createElement('td');
+        stepCell.innerText = `步骤 ${index + 1}`;
+        row.appendChild(stepCell);
+
+        // 任务描述
+        const taskCell = document.createElement('td');
+        taskCell.innerText = task.step;
+        row.appendChild(taskCell);
+
+        // 动作列表
+        const actionCell = document.createElement('td');
+        if (task.actions && task.actions.length > 0) {
+            const actionsTable = document.createElement('table');
+            actionsTable.style.width = "100%";
+            actionsTable.style.borderCollapse = "collapse";
+
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            ['动作类型', '动作名称', '动作参数'].forEach(headerText => {
+                const th = document.createElement('th');
+                th.innerText = headerText;
+                th.style.border = "1px solid #ddd";
+                th.style.padding = "5px";
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            actionsTable.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            task.actions.forEach(action => {
+                const actionRow = document.createElement('tr');
+
+                const typeCell = document.createElement('td');
+                typeCell.innerText = action.type || "";
+                typeCell.style.border = "1px solid #ddd";
+                typeCell.style.padding = "5px";
+                actionRow.appendChild(typeCell);
+
+                const nameCell = document.createElement('td');
+                nameCell.innerText = action.name || "";
+                nameCell.style.border = "1px solid #ddd";
+                nameCell.style.padding = "5px";
+                actionRow.appendChild(nameCell);
+
+                const argsCell = document.createElement('td');
+                argsCell.innerText = formatActionArgs(action.args);
+                argsCell.style.border = "1px solid #ddd";
+                argsCell.style.padding = "5px";
+                actionRow.appendChild(argsCell);
+
+                tbody.appendChild(actionRow);
+            });
+            actionsTable.appendChild(tbody);
+            actionCell.appendChild(actionsTable);
+        } else {
+            actionCell.innerText = "无动作";
+        }
+        row.appendChild(actionCell);
+
+        // 添加行到表格
+        taskTableBody.appendChild(row);
+    });
+
+    document.getElementById('taskResult').style.display = "block";
+    }
+
+// 辅助函数格式化参数
+function formatActionArgs(args) {
+    if (!args) return "无参数";
+    const filteredArgs = Object.keys(args)
+        .filter(key => args[key] !== null && args[key] !== undefined)
+        .map(key => `${key}: ${args[key]}`)
+        .join(", ");
+    return filteredArgs || "无有效参数";
+}
+
+    // 确认保存任务结果
+    document.getElementById("confirmTaskButton").addEventListener("click", async () => {
+        alert("✅ 任务和动作已保存！");
         resetUI();
     });
 
     // 取消按钮 - 不保存结果
-    document.getElementById("cancelButton").addEventListener("click", () => {
-        alert("❌ 已取消，不保存结果。");
+    document.getElementById("cancelTaskButton").addEventListener("click", () => {
         resetUI();
     });
 
     // 重试按钮 - 重新录音
-    // 重试按钮 - 重新录音
     document.getElementById("retryButton").addEventListener("click", async () => {
         resetUI();
-
-        // 直接开始录音
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'audio.wav');
-
-            // 上传音频到服务器
-            const response = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-            if (response.ok) {
-                currentOriginalText = result.original_text;
-                currentTranslatedText = result.translated_text;
-
-                document.getElementById("chinese-text").innerText = `📝 中文：${result.original_text}`;
-                document.getElementById("english-text").innerText = `📚 英文：${result.translated_text}`;
-                document.getElementById("actionButtons").style.display = "block";
-            } else {
-                document.getElementById("output").innerHTML = `❗ 出错: ${result.error}`;
-            }
-
-            // 禁用录音和停止按钮
-            document.getElementById("recordButton").disabled = true;
-            document.getElementById("stopButton").disabled = true;
-        };
-
-        mediaRecorder.start();
-        document.getElementById("recordButton").disabled = true;
-        document.getElementById("stopButton").disabled = false;
+        startRecording();
     });
 
     // 重置界面
@@ -178,9 +289,10 @@
         document.getElementById("chinese-text").innerText = "📝 中文：等待录音结果...";
         document.getElementById("english-text").innerText = "📚 英文：等待翻译结果...";
         document.getElementById("actionButtons").style.display = "none";
+        document.getElementById("taskResult").style.display = "none";
         currentOriginalText = "";
         currentTranslatedText = "";
-        audioChunks = []; // 清除音频缓存
+        audioChunks = [];
         document.getElementById("recordButton").disabled = false;
         document.getElementById("stopButton").disabled = true;
     }

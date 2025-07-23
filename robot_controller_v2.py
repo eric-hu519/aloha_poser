@@ -2,6 +2,7 @@
 #robot controller v2 integrated with anygrasp sdk 
 #and deleted any redundant code in v1
 #####
+from httpx import get
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
 import numpy as np
 import json
@@ -13,30 +14,41 @@ import zlib
 import requests
 import cv2
 import threading
-from utils.robot_utils import depth_circle_sampler
+import robot_controller
+from utils.robot_utils import depth_circle_sampler, post_process_grasp_pose, check_grasp_pos, args_to_ee_matrix, ee_matrix_to_args, apply_local_offset_to_pose, get_roll_pitch_yaw_from_matrix
+from utils.robot_utils import RobotStatusLogger as BotLogger
 from scipy.spatial.transform import Rotation as R
+
+#将anygrasp_sdk中的AnyGrasp类导入,添加到依赖路径
+import sys
+sys.path.append('/home/mamager/interbotix_ws/src/aloha/aloha_poser/anygrasp_sdk/grasp_detection')
 from gsnet import AnyGrasp
+from point_process_v7 import point_cloud_completed_XY
+import open3d as o3d
 #from realsense_test_aloha import RealSenseCamera
 from utils.pressure_sensor import PressureSensor
 from anygrasp_sdk.grasp_detection.cloud_point_process_v2 import RealSenseCapture
 from anygrasp_sdk.grasp_detection.cloud_point_process_v2 import CloudPointProcessor as processor
 IMAGE_URL = "http://192.168.31.109:1115/upload"
-OFFSET_L = [0.07, -0.075, 0.25]
-OFFSET_R = [0.07, 0.075, 0.25]#NOTE: Need recalibrite
+OFFSET_L = [0.095, -0.065, 0.18, 0.0, 0.17, 0.0]
+OFFSET_R = [0.07, 0.057, 0.25]#NOTE: Need recalibrite
 DEFAULT_SIDE = 'left'
 HOME_POSE = {'left': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0},
              'right': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0}}
 GRIPPER_POSE_THRESHOLD = 60
 PRESSURE_SENSOR_THRESHOLD = 0.5
-
+OBJ_WIDTH_THRESHOLD = 0.07 #物体宽度阈值
 SCALE = 0.01
 CAM_ROT = [-56,0,180]
-CAM_TRANS = [0,0.45,0]
+CAM_TRANS = [0,0.45,0.15]
 BASE_ROT = [126,0,90]
 BASE_TRANS = [0.32,0.31,-0.24]
 
+GRASP_OFFSET = 0.08
+RELEASE_OFFSET = -0.05
+
 class Robot_Controller:
-    def __init__(self,one_arm_mode = True, test_camera = False, enable_pressure = False) -> None:
+    def __init__(self,test_camera = False) -> None:
         """
         :param one_arm_mode: bool, if True, only one arm will be used
         :param test_camera: bool, if True, the realsense camera will not be used, use presaved img instead
@@ -46,47 +58,30 @@ class Robot_Controller:
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(logging.StreamHandler())
         #init robot
-        self.puppet_bot_left = InterbotixManipulatorXS(robot_model="vx300s", group_name="arm", gripper_name="gripper",
+        if DEFAULT_SIDE == 'left':
+            self.puppet_bot= InterbotixManipulatorXS(robot_model="vx300s", group_name="arm", gripper_name="gripper",
                                                         robot_name=f'puppet_left', init_node=True)
-        self.puppet_bot_right = InterbotixManipulatorXS(robot_model="vx300s", group_name="arm", gripper_name="gripper",
-                                                        robot_name=f'puppet_right', init_node=False)
+            self.puppet_bot.dxl.robot_torque_enable("group", "arm", True)
+            self.puppet_bot.dxl.robot_torque_enable("single", "gripper", True)
+        else:
+            self.puppet_bot = InterbotixManipulatorXS(robot_model="vx300s", group_name="arm", gripper_name="gripper",
+                                                        robot_name=f'puppet_right', init_node=True)
+            self.puppet_bot.dxl.robot_torque_enable("group", "arm", True)
+            self.puppet_bot.dxl.robot_torque_enable("single", "gripper", True)
         
-        self.puppet_bot_left.dxl.robot_torque_enable("group", "arm", True)
-        self.puppet_bot_left.dxl.robot_torque_enable("single", "gripper", True)
-        
-        self.puppet_bot_right.dxl.robot_torque_enable("group", "arm", True)
-        self.puppet_bot_right.dxl.robot_torque_enable("single", "gripper", True)
-        
-        self.one_arm_mode = one_arm_mode
         #init robot status
-        self.side = None
-        self.target_pos = {}
         self.detect_result = dict()
-        self.robot_status = dict()
-        self.detect_target = dict()
-        self.robot_status['left'] = {'gripper': 'open', 'holding_status': False}
-        self.robot_status['right'] = {'gripper': 'open', 'holding_status': False}
-        self.robot_status['left']['gripper_pressure'] = None
-        self.robot_status['right']['gripper_pressure'] = None
-        self.robot_status['left']['robot_pose'] = []
-        self.robot_status['right']['robot_pose'] = []
-        self.detect_target['left'] = []
-        self.detect_target['right'] = []
-        #action target is different from detect target, it is parsed from action sequence
-        self.action_target =  []
-        self.holding_obj = None
-        self.enable_pressure = enable_pressure
+        self.bot_logger = BotLogger(robot=self.puppet_bot)
         #init camera
         self.test_camera = test_camera
         #init anygrasp sdk
-        self.grasp_processor = Anygrasp_Processor(side=DEFAULT_SIDE)
+        self.grasp_processor = Anygrasp_Processor()
         
     def run(self,action_sequence):
         """
         运行动作序列
         """
-        #print current working directory
-        #self.logger.info(f"Current working directory: {os.getcwd()}")
+        #测试模式下直接读取json文件
         if '.json' in action_sequence:
             with open(action_sequence, 'r') as file:
                 data = json.load(file)
@@ -94,46 +89,11 @@ class Robot_Controller:
             data = action_sequence
         self.logger.info(f"Action length: {len(data)}")
         #init to home pose
-        if self.one_arm_mode:
-            self.home_pose({}, DEFAULT_SIDE)
-            self.open_gripper({}, DEFAULT_SIDE)
-        else:
-            self.init_thread_left = threading.Thread(target=self.init_pose_for_one_side, args=('left',))
-            self.init_thread_right = threading.Thread(target=self.init_pose_for_one_side, args=('right',))
-            self.init_thread_left.start()
-            self.init_thread_right.start()
-            self.init_thread_left.join()
-            self.init_thread_right.join()
-
-        if not self.one_arm_mode:
-        #separate actions by side and detect
-            side1_actions, side2_actions, detect_actions = self.separate_actions(data)
-            #run action sequence by detect-both sides-detect-both sides... 
-            #so that the robot can operate synchronously
-            for item in detect_actions:
-                #run detect action first
-                self.run_one_side(item)
-                side1_sub_actions = side1_actions.pop(0)
-                side2_sub_actions = side2_actions.pop(0)
-                self.side1_action_thread = threading.Thread(target=self.run_one_side, args=(side1_sub_actions,))
-                self.side2_action_thread = threading.Thread(target=self.run_one_side, args=(side2_sub_actions,))
-                self.side1_action_thread.start()
-                self.side2_action_thread.start()
-                #wait for both sides to finish
-                self.side1_action_thread.join()
-                self.side2_action_thread.join()
-            #set both arms to sleep pose
-            self.sleep_thread_left = threading.Thread(target=self.sleep_pose, args=({}, 'left'))
-            self.sleep_thread_right = threading.Thread(target=self.sleep_pose, args=({}, 'right'))
-            self.sleep_thread_left.start()
-            self.sleep_thread_right.start()
-            self.sleep_thread_left.join()
-            self.sleep_thread_right.join()
-
-        else:
-            #run action sequence for one side
-            self.run_one_side(data)
-            #self.sleep_pose({}, DEFAULT_SIDE)
+        self.home_pose({})
+        self.open_gripper({})
+        self.run_one_side(data)
+        #执行完后归位
+        self.sleep_pose({})
         
     def run_one_side(self,action_sequence):
         """
@@ -144,53 +104,50 @@ class Robot_Controller:
             actuator_type = item.get('type')
             name = item.get('name')
             args = item.get('args')
-            side = item.get('side') if item.get('side') is not None else None
             if args is not None:
-                args, run_side, detect_target = self.parse_args(args,side)
+                args, detect_target = self.parse_args(args)
             #assign side to operate when detect is not called
             func = self.get_function_by_name(actuator_type, name)
-            if detect_target is not None:
-                self.action_target.append(detect_target)
-            self.logger.info(f"Running {actuator_type} {name} with args {args} for {run_side} arm")
-            func(args, run_side)
-            #update target position by arm position if grasp is called
-            if actuator_type != 'camera':
-                assert detect_target is not None, "Detect target is not assigned."
+            self.logger.info(f"Running {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm")
+            try:
+                #if not detecting, and grasping, override the rot args
+                if args is not None and self.bot_logger.is_grasping:
+                    #use last action to get the rot args
+                    last_action = self.bot_logger.get_last_action()
+                    if last_action is not None:
+                        args['roll'] = last_action.roll
+                        args['pitch'] = last_action.pitch
+                        args['yaw'] = last_action.yaw
+                func(args)
+                #get current stepid
+                stepid = action_sequence.index(item)
                 if name == 'grasp':
-                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
-                    self.holding_obj = detect_target
-                #if holding, target coordinate changes with robot arm
-                elif name == 'set_pose' and self.robot_status[run_side]['holding_status'] == True and self.holding_obj == detect_target:
-                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
-                elif name == 'vertical_pose' and self.robot_status[run_side]['holding_status'] == True and self.holding_obj == detect_target:
-                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
-                elif name == 'horizontal_pose' and self.robot_status[run_side]['holding_status'] == True and self.holding_obj == detect_target:
-                    self.detect_result[detect_target][run_side] = self.robot_status[run_side]['robot_pose'][-1]
+                    self.bot_logger.is_grasping = True
                 elif name == 'release':
-                    self.detect_result[self.holding_obj][run_side] = self.robot_status[run_side]['robot_pose'][-2]
-                    self.holding_obj = None
-                    
-    def init_pose_for_one_side(self,side):
+                    self.bot_logger.is_grasping = False
+                #log robot status
+                self.bot_logger.log_action(stepid = stepid)
+            except Exception as e:
+                self.logger.error(f"Error in {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm: {e}")
+                raise e
+
+    def init_pose_for_one_side(self):
         """
         单边机械臂初始化
         """
-        self.home_pose({}, side)
-        self.open_gripper({}, side)
-    def parse_args(self, args, side = None):
+        self.home_pose({})
+        self.open_gripper({})
+
+    def parse_args(self, args):
         """
         解析参数，将参数中的detect_result替换为检测结果
         """
         parsed_args = {}
         detect_target = None
         pattern = r'(detect_result)\[["\']?(\w+)["\']?\]\[(\d+)\](\s*[\+\-]?\s*\d+(\.\d+)?(cm)?)?'
-        side_pattern = r'detect_result\[["\']?(\w+)["\']?\]\[["\']?(\w+)["\']?\]'
-        if side is not None and not self.one_arm_mode:
-            side_match = re.match(side_pattern,side)
-            side = self.detect_result[side_match.group(1)][side_match.group(2)]
-        else:
-            side = DEFAULT_SIDE
         if 'target' in args:
             if args['target'] is not None:
+                args['target'].replace(" ","_")
                 parsed_args['target'] = args['target']
         for arg in args:
             if arg == 'target':
@@ -208,20 +165,16 @@ class Robot_Controller:
                         diviation = scale_match.group(1)
                     else:
                         diviation = 0
-                    #get detect result according to side
-                    if self.one_arm_mode:
-                        side = DEFAULT_SIDE 
-                    if side is None:
-                        parsed_args[arg] = self.detect_result[match.group(2)]['default_side'][int(match.group(3))] + (SCALE*float(diviation))
-                        side = self.detect_result[match.group(2)]['suggested_side']
-                    else:
-                        parsed_args[arg] = self.detect_result[match.group(2)][side][int(match.group(3))] + (SCALE*float(diviation))
+                    match.group(2).replace(" ","_")
+                    parsed_args[arg] = self.detect_result[match.group(2)][int(match.group(3))] + (SCALE*float(diviation))
                     #parsed_args[arg] = parsed_args[arg][match.group(2)]
                     #parsed_args[arg] = eval(match.group(1),{"detect_result":self.detect_result})[match.group(2)][int(match.group(3))] + (SCALE*float(scale_match.group(1)) if match.group(4) is not None else 0)
                     detect_target = match.group(2)
+                else:
+                    parsed_args[arg] = np.float32(args[arg])*SCALE
             else:
                 parsed_args[arg] = args[arg]
-        return parsed_args, side, detect_target
+        return parsed_args, detect_target
 
     def get_function_by_name(self,actuator_type, name):
         """
@@ -234,7 +187,6 @@ class Robot_Controller:
         if actuator_type == 'arm':
             return {
                 'set_pose': self.set_pose,
-                'set_joint_pose': self.set_joint_pose,
                 'set_trajectory': self.set_trajectory,
                 'home_pose': self.home_pose,
                 'sleep_pose': self.sleep_pose,
@@ -249,25 +201,9 @@ class Robot_Controller:
                 'close': self.close_gripper
             }.get(name, None)
         
-    def get_roll_pitch_yaw_from_matrix(self, matrix):
-        """
-        从变换矩阵中提取 roll, pitch 和 yaw 角度
-        """
-        # 提取旋转矩阵 R
-        R = matrix[:3, :3]
 
-        # 计算 pitch
-        pitch = np.arcsin(-R[2, 0])
 
-        # 计算 roll 和 yaw
-        if np.cos(pitch) != 0:
-            roll = np.arctan2(R[2, 1] / np.cos(pitch), R[2, 2] / np.cos(pitch))
-            yaw = np.arctan2(R[1, 0] / np.cos(pitch), R[0, 0] / np.cos(pitch))
-        else:
-            roll = np.arctan2(-R[1, 2], R[1, 1])
-            yaw = 0
 
-        return roll, pitch, yaw
     def push_nlp_to_visiontracker(self, nlp):#将nlp消息发送给物理机2
         """
         将检测目标信息发给视觉追踪模块
@@ -296,9 +232,26 @@ class Robot_Controller:
             raise e
         return response
 
+    def get_arm_position(self, get_matrix=True):
+        """
+        获取机械臂末端位置
+        """
+        bot = self.puppet_bot
+        #get transform matrix
+        pose_matrix =  bot.arm.get_ee_pose()
+        if get_matrix:
+            return pose_matrix
+        else:
+            ee_pose = pose_matrix[:3,3]
+            roll, pitch, yaw = self.get_roll_pitch_yaw_from_matrix(pose_matrix)
+        #add roll and pitch to the end of the list
+            ee_pose = np.append(ee_pose, [roll, pitch, yaw])
+            return ee_pose
+
     def update_arm_position(self,side):
         """
         获取机械臂末端位置
+        depricated
         """
         bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
         #get transform matrix
@@ -309,6 +262,7 @@ class Robot_Controller:
         ee_pose = np.append(ee_pose, [roll, pitch])
         self.robot_status[side]['robot_pose'].append(ee_pose)
         
+
     def check_gripper_status(self, side):
         """
         检查夹爪状态是否夹持成功
@@ -321,121 +275,125 @@ class Robot_Controller:
             return False
         else:
             return True
-
-    def get_function_by_name(self,actuator_type, name):
-        """
-        根据名称获取对应的API函数
-        """
-        if actuator_type == 'camera':
-            return {
-                'detect': self.detect
-            }.get(name, None)
-        if actuator_type == 'arm':
-            return {
-                'set_pose': self.set_pose,
-                'set_joint_pose': self.set_joint_pose,
-                'set_trajectory': self.set_trajectory,
-                'home_pose': self.home_pose,
-                'sleep_pose': self.sleep_pose,
-                'grasp': self.grasp,
-                'release': self.release_obj,
-                'vertical_pose': self.restore_vertical,
-                'horizontal_pose': self.restore_horizontal
-            }.get(name, None)
-        elif actuator_type == 'gripper':
-            return {
-                'open': self.open_gripper,
-                'close': self.close_gripper
-            }.get(name, None)
-        
     """
     Belows are the APIs to control the robot
     """
-    def set_pose(self, args, side):
+    def set_pose(self, args):
         """
         移动机械臂到达指定坐标API
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        bot = self.puppet_bot
         bot.arm.set_ee_pose_components(**args)
-        #update robot status
-        self.update_arm_position(side)
         
-    def restore_vertical(self, args, side):
+    def restore_vertical(self,args):
         """
         旋转夹爪至竖直位置
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        args = {}
+        bot = self.puppet_bot
+        #get last action
+        last_action = self.bot_logger.get_last_action()
+        args['x'] = last_action.x
+        args['y'] = last_action.y
+        args['z'] = last_action.z+0.05
         args['roll'] = 0
         args['pitch'] = 0
-        self.set_pose(args, side)
-        #update robot status
-        self.update_arm_position(side)
-    def restore_horizontal(self, args, side):
+        args['yaw'] = 0
+        self.set_pose(args)
+        
+    def restore_horizontal(self,args):
         """
         旋转夹爪至水平位置
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        
+        bot = self.puppet_bot
+        #get last action
+        args = {}
+        last_action = self.bot_logger.get_last_action()
+        args['x'] = last_action.x
+        args['y'] = last_action.y
+        args['z'] = last_action.z
         args['roll'] = 0.9
         args['pitch'] = 1.2
-        self.set_pose(args, side)
-        #update robot status
-        self.update_arm_position(side)
-    def grasp(self, args, side):
+        args['yaw'] = 0
+        self.set_pose(args)
+        
+    #抓取目标API
+    def grasp(self, args):
         """
-        夹取目标API
+        :param args: target coordinates, original Z axis has no offset.
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        bot = self.puppet_bot
+        args['z'] += GRASP_OFFSET
         #first move above the target
-        args['z'] = args['z'] + 0.15
-        self.set_pose(args, side)
-        #then move to the target
-        args['z'] = args['z'] - 0.15
-        self.set_pose(args, side)
+        self.set_pose(args)
+        #move down
+        args['z'] -= GRASP_OFFSET
+        self.set_pose(args)
         #close gripper
-        self.close_gripper(args, side, type='grasp')
+        self.close_gripper({})
         #move up
-        args['z'] = args['z'] + 0.2
-        self.set_pose(args, side)
-        #update robot status
-        self.robot_status[side]['holding_status'] = True
-    
-    def release_obj(self, args, side):
+        args['z'] += GRASP_OFFSET
+        self.set_pose(args)
+    #释放目标API
+    def release_obj(self, args):
         """
-        释放目标API
+        :param args: 目标坐标，Z轴有offset
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        args['z'] = args['z'] + 0.05
-        self.set_pose(args, side)
+        bot = self.puppet_bot
+        #first move above the target
+        release_args = {}
+        release_args['z'] = RELEASE_OFFSET
+        #move down
+        self.set_trajectory(release_args)
         #open gripper
-        self.open_gripper(args, side)
+        self.open_gripper({})
         #move up
-        args['z'] = args['z'] + 0.05
-        self.set_pose(args, side)
-        #update robot status
-        self.robot_status[side]['holding_status'] = False
+        release_args['z'] = -RELEASE_OFFSET
+        self.set_trajectory(release_args)
 
-    def detect(self, args, side=None):
+
+    def detect(self, args):
         """
         根据指定参数进行目标检测，分配对应机械臂
         """
+        color_img = None
+        depth_img = None
+        mask = None
+        x_center = None
+        y_center = None
+        width = None
+        height = None
+        
         rs_pipline = RealSenseCapture(is_mask=True, use_anchor=True)
+        rs_pipline.anchor = None
         #get image from camera
         if self.test_camera:
             #TODO:read color and depth img and mask img from file
             raise NotImplementedError
         else:
-            color_img, depth_img, mask = rs_pipline.get_image()
+            self.push_nlp_to_visiontracker(args['target'])
+            color_img, depth_img, mask = rs_pipline.get_color_and_depth_img()
         #mask img by target region
-        responese = self.send_rgb_img(color_img,IMAGE_URL)
+        response = self.send_rgb_img(color_img,IMAGE_URL)
         #get detect result
         response = json.loads(response.content.decode('utf-8'))
         #get object position from tracker
         x_center, y_center, width, height = response['box']
-        #convert to 4 point anchor and set
-        rs_pipline.anchor = np.array([[x_center - width/2, y_center - height/2],[ x_center + width/2, y_center - height/2],[x_center + width/2, y_center + height/2],[x_center - width/2, y_center + height/2]])
+        width += 1
+        height += 1
+        #convert to 4 point anchor and set anchor mask
+        rs_pipline.anchor = np.array([[x_center - width/2, y_center - height/2],[ x_center + width/2, y_center - height/2],[x_center + width/2, y_center + height/2],[x_center - width/2, y_center + height/2]],dtype=np.int32)
         #get object position in 3D
-        pcd = rs_pipline.get_pcd()
+        masked_color_img, masked_depth_img = rs_pipline.mask_img(color_img, depth_img, mask)
+        #display the masked image
+        # while True:
+        #     cv2.imshow('masked_color_img', masked_color_img)
+        #     key = cv2.waitKey(1)
+        #     if key == ord('q'):
+        #         break
+        pcd = rs_pipline.get_pcd(masked_color_img, masked_depth_img)
+        #SAVE PCD for debug
+        o3d.io.write_point_cloud('debug_pcd.ply', pcd)
         #get transform matrix and processed pcd
         _, cam2base_mat = processor.process_pcd(pcd,
                                         rotate_deg=BASE_ROT,
@@ -445,113 +403,116 @@ class Robot_Controller:
                                             rotate_deg=CAM_ROT,
                                             trans_pos=CAM_TRANS,
                                             )
-        #get grasp pose
-        grasp_pose = self.grasp_processor.get_grasp_pose(trans_pcd, pcd_mat, cam2base_mat)
-        #update detect result
-        #one arm
-        self.detect_result[args['target']] = {'default_side': grasp_pose, 'suggested_side': DEFAULT_SIDE, DEFAULT_SIDE: grasp_pose}
-        self.logger.info(f"Detect result: {self.detect_result[args['target']]}")
-        #update detect target
-        self.detect_target[DEFAULT_SIDE].append(args['target'])
+        #for debug save pcd_mat and cam2base_mat
+        np.save('debug_pcd_mat.npy', pcd_mat)
+        np.save('debug_cam2base_mat.npy', cam2base_mat)
+        
+        #complete_pcd
+        points = np.asarray(trans_pcd.points).astype(np.float32)
+        colors = np.asarray(trans_pcd.colors).astype(np.float32)
+        o3d.io.write_point_cloud('debug_trans_pcd.ply', trans_pcd)
+        # cam_pos = [0,0,0]
+        # com_points, com_colors, center, triangle_points = point_cloud_completed_XY(points, colors, cam_pos)
+        # trans_pcd.points = o3d.utility.Vector3dVector(com_points)
+        # trans_pcd.colors = o3d.utility.Vector3dVector(com_colors)
+        #create a plane at max_z
+        max_z = np.max(points[:,2])
+        #mask points to get better performance
+        mean_z = np.mean(points[:,2])
+        diff_z = max_z - mean_z
+        upper_bound = mean_z + diff_z / 4
+        mask = points[:,2] < upper_bound
+        points = points[mask]
+        colors = colors[mask]
+        max_z = np.max(points[:,2])
+        trans_pcd = o3d.geometry.PointCloud()
+        trans_pcd.points = o3d.utility.Vector3dVector(points)
+        trans_pcd.colors = o3d.utility.Vector3dVector(colors)
 
-    def open_gripper(self,args, side):
+
+        width = 0.5
+        height = 0.5
+        plane = o3d.geometry.TriangleMesh.create_box(width=width, height=height, depth=0.005)
+        plane.translate([-width/2, -height/2, max_z+0.0025])
+        plane.paint_uniform_color([0.5, 0.5, 0.5])
+        #convert the plane to a point cloud
+        plane_pcd = plane.sample_points_uniformly(number_of_points=100000)
+        #combine current point cloud and the plane
+        combined_pcd = trans_pcd + plane_pcd
+        #for debug
+
+        o3d.io.write_point_cloud('debug_combined_pcd.ply', combined_pcd)
+        #get grasp pose
+        grasp_pose = self.grasp_processor.get_grasp_pose(combined_pcd, pcd_mat, cam2base_mat, self.puppet_bot)
+        if grasp_pose is None:
+            self.logger.error("Failed to get grasp pose")
+            self.sleep_pose({})
+            raise Exception("Failed to get grasp pose")
+        #update detect result
+        self.detect_result[args['target']] = grasp_pose
+        self.logger.info(f"Detect result: {self.detect_result[args['target']]}")
+
+    def open_gripper(self,args):
         """
         张开夹爪API
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        #update robot status
-        self.robot_status[side]['gripper'] = 'open'
-        self.robot_status[side]['holding_status'] = False
+        bot = self.puppet_bot
         #execute open gripper
         bot.gripper.open()
 
     
-    def close_gripper(self,args, side, type = 'normal'):
+    def close_gripper(self,args):
         """
         闭合夹爪API
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        bot = self.puppet_bot
         #execute close gripper
-        
-        #retry mechanism
-        if type == 'grasp':
-            if self.enable_pressure:
-                retry = 0
-                #record gripper pressure
-                #init gripper status
-                while self.check_gripper_status(side):
-                    continue
-                self.robot_status[side]['gripper_pressure'] = False
-                while retry < 3:
-                    bot.gripper.close(side = side)
-                    if self.check_gripper_status(side):
-                        self.robot_status[side]['gripper_pressure'] = True
-                        self.robot_status[side]['gripper'] = 'close'
-                        self.robot_status[side]['holding_status'] = True
-                        break
-                    else:
-                        retry = retry + 1
-                        #back to the last pose and re-detect and close gripper
-                        if len(self.robot_status[side]['robot_pose']) >= 2:
-                            last_pose = self.robot_status[side]['robot_pose'][-2]
-                        else:
-                            last_pose = self.robot_status[side]['robot_pose'][-1]
-                        retry_args = {'x': last_pose[0], 'y': last_pose[1], 'z': last_pose[2], 'roll': last_pose[3], 'pitch': last_pose[4]}
-                        self.set_pose(retry_args, side)
-                        #open gripper
-                        self.open_gripper({}, side)
-                        #update detect result
-                        last_target = self.detect_target[side][-1]
-                        self.detect({'target': last_target}, side)
-                        #retry close gripper
-                        last_pose = self.robot_status[side]['robot_pose'][-1]
-                        retry_args = {'x': last_pose[0], 'y': last_pose[1], 'z': last_pose[2], 'roll': last_pose[3], 'pitch': last_pose[4]}
-                        self.set_pose(retry_args, side)
-                        bot.gripper.close(side = side)
-                        self.logger.warning(f"Retry {retry} times")
-                if retry == 3:
-                    self.logger.error(f"Failed to grasp {last_target} after 3 retries.")
-                    self.open_gripper({}, side)
-                    self.home_pose({}, side)
-                    self.sleep_pose({}, side)
-                    exit(1)
-            else:
-                bot.gripper.close(side = side)
-                #update robot status
-                self.robot_status[side]['gripper_pressure'] = False
-                self.robot_status[side]['gripper'] = 'close'
-                self.robot_status[side]['holding_status'] = True
-        else: #else for 'normal'
-            bot.gripper.close(side = side)
-            #update robot status
-            self.robot_status[side]['gripper_pressure'] = False
-            self.robot_status[side]['gripper'] = 'close'
-            self.robot_status[side]['holding_status'] = False #False is set because not holding
+        bot.gripper.close(side = DEFAULT_SIDE)
 
-    def home_pose(self,args, side):
+
+    def home_pose(self,args):
         """
         将机械臂移动到初始位置API
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
-        bot.arm.set_ee_pose_components(**HOME_POSE[side])
-        #update robot status
-        self.update_arm_position(side)
+        bot = self.puppet_bot
+        bot.arm.set_ee_pose_components(**HOME_POSE[DEFAULT_SIDE])
 
-    def sleep_pose(self,args, side):
+    def sleep_pose(self,args):
         """
         将机械臂移动到休眠位置API
         """
-        bot = self.puppet_bot_left if side == 'left' else self.puppet_bot_right
+        bot = self.puppet_bot
         bot.arm.go_to_sleep_pose()
+    
+    def set_trajectory(self,args):
+        """
+        以末端为原点进行移动的API
+        """
+        bot = self.puppet_bot
+        bot.arm.set_ee_cartesian_trajectory(**args)
+    def set_relative_ee_pose(self, args):
+        """
+        设置相对末端位置的API
+        """
+        bot = self.puppet_bot
+        bot.arm.set_relative_ee_position_wrt_to_base_frame(**args)
+        
+    def set_ee_pose_matrix(self, pose_matrix):
+        """
+        设置末端执行器的变换矩阵
+        :param pose_matrix: np.array, 4x4变换矩阵
+        """
+        bot = self.puppet_bot
+        bot.arm.set_ee_pose_matrix(pose_matrix)
 
 class Anygrasp_Processor:
     def __init__(self,side = 'left') -> None:
         parser = argparse.ArgumentParser()
         parser.add_argument('--checkpoint_path',default='/home/mamager/interbotix_ws/src/aloha/aloha_poser/anygrasp_sdk/grasp_detection/log/checkpoint_detection.tar', help='Model checkpoint path')
-        parser.add_argument('--max_gripper_width', type=float, default=0.1, help='Maximum gripper width (<=0.1m)')
+        parser.add_argument('--max_gripper_width', type=float, default=0.12, help='Maximum gripper width (<=0.1m)')
         parser.add_argument('--gripper_height', type=float, default=0.19, help='Gripper height')
         parser.add_argument('--top_down_grasp',default= True, action='store_true', help='Output top-down grasps.')
-        parser.add_argument('--debug', default=False,action='store_true', help='Enable debug mode')
+        parser.add_argument('--debug', default=True,action='store_true', help='Enable debug mode')
         cfgs = parser.parse_args()
         cfgs.max_gripper_width = max(0, min(0.1, cfgs.max_gripper_width))
 
@@ -563,14 +524,14 @@ class Anygrasp_Processor:
         ymin, ymax = 0.02, 0.15
         zmin, zmax = 0.0, 1.0
         self.lims = [xmin, xmax, ymin, ymax, zmin, zmax]
-    
-    def get_grasp_pose(self,pcd,pcd_mat,cam2base_mat):
+    #获取抓取位姿
+    def get_grasp_pose(self,pcd,pcd_mat,cam2base_mat,bot=None ):
         """
-        获取抓取姿势
         :param pcd: open3d.geometry.PointCloud, 点云数据
         :param pcd_mat: np.array, 点云变换矩阵
         :param cam2base_mat: np.array
-        :return: dict, 抓取姿势
+        :param obj_width: float, 物体宽度, 决定是否采用开合点偏移
+        :return: list, 抓取姿势
         """
         trans_mat = cam2base_mat @ np.linalg.inv(pcd_mat)
         points = np.asarray(pcd.points).astype(np.float32)
@@ -579,45 +540,70 @@ class Anygrasp_Processor:
         args = None
         offset = OFFSET_L if self.side == 'left' else OFFSET_R
 
-        gg, cloud = self.anygrasp.get_grasp(points, colors, lims=self.lims, apply_object_mask=True, dense_grasp=False, collision_detection=True)
+        gg, cloud = self.anygrasp.get_grasp(points, colors, lims=self.lims, apply_object_mask=False, dense_grasp=True, collision_detection=False)
         if gg is None:
             return args
         elif len(gg) == 0:
             return args
-        
+        #check if the grasp is valid, only when bot is not none
+        print(f'Total {len(gg)} grasp poses detected')
+        grasp_pose_id = 0
+        grasp_tobe_removed = []
         gg = gg.nms().sort_by_score()
+        #copy graspgroup
+        from copy import deepcopy
+        grasp_group = deepcopy(gg)
+        for grasp_pose in grasp_group:
+            grasp_pose = grasp_pose.transform(trans_mat)
+            obj_width = grasp_pose.width
+            grasp_args = post_process_grasp_pose(grasp_pose, offset)
+            if obj_width >= OBJ_WIDTH_THRESHOLD:
+                #if the object width is larger than threshold, use local offset
+                grasp_matrix = args_to_ee_matrix(grasp_args)
+                #apply local offset to the grasp matrix
+                grasp_matrix = apply_local_offset_to_pose(grasp_matrix, [0.0,obj_width/2,0.0])
+                #convert the grasp matrix to args
+                grasp_args = ee_matrix_to_args(grasp_matrix)
+                #TODO: 如果不是抓取是否还进行偏移？
+            if bot is not None:
+                if not check_grasp_pos(bot, grasp_args):
+                #remove current grasp group by id
+                    grasp_tobe_removed.append(grasp_pose_id)
+            grasp_pose_id += 1
+        #remove invalid grasp poses
+        if len(grasp_tobe_removed) > 0:
+            print(f'Removing {len(grasp_tobe_removed)} invalid grasp poses from {len(gg)} total grasp poses')
+            gg.remove(grasp_tobe_removed)
+        #if no valid grasp pose, return None
+        if len(gg) == 0:
+            return args
+        
         gg_best = gg[0]
         gg_best = gg_best.transform(trans_mat)
-        rot = gg_best.rotation_matrix
-        grippers = gg.to_open3d_geometry_list()
-        for gripper in grippers:
-            gripper.transform(trans_mat)
-        trans = grippers[0].get_center()
-        
-        #get rotation degree
-        r = R.from_matrix(rot)
-        gripper_rot_xyz = r.as_euler('xyz', degrees=True)
-        #process rotation
-        if gripper_rot_xyz[0] > 90:
-            gripper_rot_xyz[0] -= 180
-        elif gripper_rot_xyz[0] < -90:
-            gripper_rot_xyz[0] += 180
-        
-        if gripper_rot_xyz[1] > 90:
-            gripper_rot_xyz[1] -= 180
-        elif gripper_rot_xyz[1] < -90:
-            gripper_rot_xyz[1] += 180
+        gripper = gg_best.to_open3d_geometry()
+        cloud.transform(trans_mat)
+        #gripper.transform(trans_mat)
+        #gripper.translate(np.array(offset))
+        best_pose = post_process_grasp_pose(gg_best, offset)
+        #for debug
+        o3d.visualization.draw_geometries([cloud,gripper])
 
-        if gripper_rot_xyz[2] > 90:
-            gripper_rot_xyz[2] -= 180
-        elif gripper_rot_xyz[2] < -90:
-            gripper_rot_xyz[2] += 180
-        args = {}
-        args['x'] = trans[0]+offset[0]
-        args['y'] = trans[1]+offset[1]
-        args['z'] = trans[2]+offset[2]
-        args['roll'] = np.deg2rad(gripper_rot_xyz[0])
-        args['pitch'] = np.deg2rad(gripper_rot_xyz[1])
-        args['yaw'] = np.deg2rad(gripper_rot_xyz[2])
-        return args
+        return best_pose
 
+
+#TODO
+## 1. grasp pose calibration programm maybe? DONE
+## 2. solve the wired action after grasping DONE
+## 3. write a script to test multiple grasp poses DONE
+## 4. Multi detect bug?
+
+
+def main():
+    #test the robot controller
+    controller = Robot_Controller(test_camera=False)
+    #controller.run('test_json/one_arm_grasp_move_release.json')
+    #controller.run('test_json/one_arm_grasp_multiple_obj.json')
+    controller.run('test_json/one_arm_multiple_detect.json')
+    
+if __name__ == '__main__':
+    main()

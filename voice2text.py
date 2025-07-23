@@ -10,7 +10,10 @@ app = Flask(__name__)
 
 # 日志文件路径
 LOG_FILE = "log/voice2text_log.json"
-
+#setting openai api key
+with open('api_key.json', 'r') as f:
+    api_key = json.load(f).get('api_key')
+openai.api_key = api_key
 # 主页面，提供录音功能
 @app.route('/')
 def index():
@@ -104,6 +107,28 @@ def save_to_log():
             json.dump(logs, log_file, ensure_ascii=False, indent=4)
 
         return jsonify({'message': 'Translation saved successfully!'})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+# 添加一个新的 API 处理用户请求并生成任务
+@app.route('/process_query', methods=['POST'])
+def process_query():
+    try:
+        data = request.json
+        user_query = data.get('user_query')
+        use_cached = data.get('use_cached', False)
+
+        if not user_query:
+            return jsonify({'error': 'Invalid user query'}), 400
+
+        # 执行 Aloha Poser 的任务分解逻辑
+        from aloha_poser import lmp_call
+
+        result = lmp_call(user_query=user_query, use_cached=use_cached)
+
+        # 返回生成的任务和动作
+        return jsonify({'success': True, 'result': result})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
