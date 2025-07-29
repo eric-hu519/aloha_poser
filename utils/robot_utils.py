@@ -1,4 +1,4 @@
-from pickle import LIST
+from pickle import LIST, TRUE
 import re
 import numpy as np
 from traitlets import Int
@@ -24,6 +24,8 @@ def check_grasp_pos(bot, grasp_pos, check_range=[-0.02, 0.08, 0.01]):
     :param check_range: check range
     """
     #grasp_pos['execute'] = False
+    if grasp_pos is None:
+        return TRUE
     original_grasp_pos = grasp_pos.copy()
     for i in np.arange(check_range[0], check_range[1], check_range[2]):
         grasp_pos[2] = original_grasp_pos[2] + i
@@ -32,7 +34,17 @@ def check_grasp_pos(bot, grasp_pos, check_range=[-0.02, 0.08, 0.01]):
             return is_valid
     return is_valid
     
-
+def linear_offset(grasp_pose, offset_start_point, offset_scaler, offset_direction = 'y'):
+    """
+    Apply linear offset to the grasp pose based on the offset direction and scaler
+    :param grasp_pose: grasp pose to be offset
+    :param offset_start_point: start point of the offset
+    :param offset_scaler: scaler for the offset
+    :param offset_direction: direction of the offset, can be 'x', 'y', 'z', 'roll', 'pitch', 'yaw'
+    :return: offset value
+    """
+    offset = grasp_pose[offset_direction] * offset_scaler + offset_start_point
+    return offset
 def post_process_grasp_pose(grasp_pose, offset):
     """
     Post process grasp pose by adding offset to the position and adjusting orientation
@@ -67,7 +79,8 @@ def post_process_grasp_pose(grasp_pose, offset):
         gripper_rot_xyz[2] += 180
     args = {}
     args['x'] = trans[0] + offset[0]
-    args['y'] = trans[1] + offset[1]
+    args['y'] = trans[1]
+    args['y'] = args['y'] + linear_offset(args, -0.0548, 0.119, 'y')
     args['z'] = trans[2] + offset[2]
     args['roll'] = np.deg2rad(gripper_rot_xyz[0]) + offset[3]
     args['pitch'] = np.deg2rad(gripper_rot_xyz[1]) + offset[4]
@@ -120,7 +133,44 @@ def apply_local_offset_to_pose(T_ee: np.ndarray, delta_local: np.ndarray) -> np.
     T_ee_new = T_ee @ T_offset_local
 
     return T_ee_new
+from scipy.spatial.transform import Rotation as R
 
+def apply_local_offset_to_pose_rpy(pose_xyzrpy, delta_local):
+    """
+    输入：
+    - pose_xyzrpy: [x, y, z, roll, pitch, yaw]，末端目标位姿（世界坐标系下）
+    - delta_local: [dx, dy, dz]，在末端局部坐标系下的平移偏移量
+
+    输出：
+    - new_pose: [x, y, z, roll, pitch, yaw]，应用偏移后的新位姿（世界坐标系下）
+    """
+
+    # 解析输入
+    x, y, z, roll, pitch, yaw = pose_xyzrpy
+    delta_local = np.array(delta_local)
+
+    # 将欧拉角转换为旋转矩阵
+    rot = R.from_euler('xyz', [roll, pitch, yaw])
+    R_mat = rot.as_matrix()
+
+    # 构造齐次变换矩阵 T
+    T = np.eye(4)
+    T[:3, :3] = R_mat
+    T[:3, 3] = [x, y, z]
+
+    # 构造局部偏移矩阵 T_delta
+    T_delta = np.eye(4)
+    T_delta[:3, 3] = delta_local
+
+    # 右乘应用局部偏移
+    T_new = T @ T_delta
+
+    # 提取新的位置和平移
+    new_xyz = T_new[:3, 3]
+    new_rpy = R.from_matrix(T_new[:3, :3]).as_euler('xyz')
+
+    # 返回 [x, y, z, roll, pitch, yaw]
+    return np.concatenate([new_xyz, new_rpy])
 def get_roll_pitch_yaw_from_matrix(matrix):
     """
     从变换矩阵中提取 roll, pitch 和 yaw 角度

@@ -2,6 +2,7 @@
 #robot controller v2 integrated with anygrasp sdk 
 #and deleted any redundant code in v1
 #####
+from pickle import OBJ
 from httpx import get
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
 import numpy as np
@@ -15,7 +16,7 @@ import requests
 import cv2
 import threading
 import robot_controller
-from utils.robot_utils import depth_circle_sampler, post_process_grasp_pose, check_grasp_pos, args_to_ee_matrix, ee_matrix_to_args, apply_local_offset_to_pose, get_roll_pitch_yaw_from_matrix
+from utils.robot_utils import depth_circle_sampler, post_process_grasp_pose, check_grasp_pos, args_to_ee_matrix, ee_matrix_to_args, apply_local_offset_to_pose_rpy
 from utils.robot_utils import RobotStatusLogger as BotLogger
 from scipy.spatial.transform import Rotation as R
 
@@ -30,14 +31,14 @@ from utils.pressure_sensor import PressureSensor
 from anygrasp_sdk.grasp_detection.cloud_point_process_v2 import RealSenseCapture
 from anygrasp_sdk.grasp_detection.cloud_point_process_v2 import CloudPointProcessor as processor
 IMAGE_URL = "http://192.168.31.109:1115/upload"
-OFFSET_L = [0.095, -0.065, 0.18, 0.0, 0.17, 0.0]
+OFFSET_L = [0.035, -0.1, 0.05, 0.0, 0.17, 0.0]
 OFFSET_R = [0.07, 0.057, 0.25]#NOTE: Need recalibrite
 DEFAULT_SIDE = 'left'
 HOME_POSE = {'left': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0},
              'right': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0}}
 GRIPPER_POSE_THRESHOLD = 60
 PRESSURE_SENSOR_THRESHOLD = 0.5
-OBJ_WIDTH_THRESHOLD = 0.07 #物体宽度阈值
+OBJ_WIDTH_THRESHOLD = 0.045 #物体宽度阈值
 SCALE = 0.01
 CAM_ROT = [-56,0,180]
 CAM_TRANS = [0,0.45,0.15]
@@ -75,7 +76,7 @@ class Robot_Controller:
         #init camera
         self.test_camera = test_camera
         #init anygrasp sdk
-        self.grasp_processor = Anygrasp_Processor()
+        self.grasp_processor = Anygrasp_Processor(botlogger=self.bot_logger)
         
     def run(self,action_sequence):
         """
@@ -110,14 +111,14 @@ class Robot_Controller:
             func = self.get_function_by_name(actuator_type, name)
             self.logger.info(f"Running {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm")
             try:
-                #if not detecting, and grasping, override the rot args
-                if args is not None and self.bot_logger.is_grasping:
-                    #use last action to get the rot args
-                    last_action = self.bot_logger.get_last_action()
-                    if last_action is not None:
-                        args['roll'] = last_action.roll
-                        args['pitch'] = last_action.pitch
-                        args['yaw'] = last_action.yaw
+                # #if not detecting, and grasping, override the rot args for maintaining the grasp angle
+                # if args is not None and self.bot_logger.is_grasping:
+                #     #use last action to get the rot args
+                #     last_action = self.bot_logger.get_last_action()
+                #     if last_action is not None:
+                #         args['roll'] = last_action.roll
+                #         args['pitch'] = last_action.pitch
+                #         args['yaw'] = last_action.yaw
                 func(args)
                 #get current stepid
                 stepid = action_sequence.index(item)
@@ -130,6 +131,7 @@ class Robot_Controller:
             except Exception as e:
                 self.logger.error(f"Error in {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm: {e}")
                 raise e
+        self.home_pose({})
 
     def init_pose_for_one_side(self):
         """
@@ -363,7 +365,7 @@ class Robot_Controller:
         y_center = None
         width = None
         height = None
-        
+        combined_pcd = None
         rs_pipline = RealSenseCapture(is_mask=True, use_anchor=True)
         rs_pipline.anchor = None
         #get image from camera
@@ -383,14 +385,20 @@ class Robot_Controller:
         height += 1
         #convert to 4 point anchor and set anchor mask
         rs_pipline.anchor = np.array([[x_center - width/2, y_center - height/2],[ x_center + width/2, y_center - height/2],[x_center + width/2, y_center + height/2],[x_center - width/2, y_center + height/2]],dtype=np.int32)
+        #display the anchor on color image
+        #cv2.polylines(color_img, [rs_pipline.anchor], isClosed=True, color=(0, 255, 0), thickness=2)
+        #display the color image
+        #cv2.imshow('color_img', color_img)
+        #cv2.waitKey(3000)
+        #cv2.destroyAllWindows()
         #get object position in 3D
-        masked_color_img, masked_depth_img = rs_pipline.mask_img(color_img, depth_img, mask)
+        masked_color_img, masked_depth_img = rs_pipline.mask_img(color_img, depth_img)
         #display the masked image
-        # while True:
-        #     cv2.imshow('masked_color_img', masked_color_img)
-        #     key = cv2.waitKey(1)
-        #     if key == ord('q'):
-        #         break
+        #cv2.imshow('masked_color_img', masked_color_img)
+        #cv2.imshow('masked_depth_img', masked_depth_img)
+        #wait for 5 seconds
+        #cv2.waitKey(3000)
+        #cv2.destroyAllWindows()
         pcd = rs_pipline.get_pcd(masked_color_img, masked_depth_img)
         #SAVE PCD for debug
         o3d.io.write_point_cloud('debug_pcd.ply', pcd)
@@ -429,11 +437,11 @@ class Robot_Controller:
         trans_pcd.points = o3d.utility.Vector3dVector(points)
         trans_pcd.colors = o3d.utility.Vector3dVector(colors)
 
-
+        #为点云补全工作空间平面
         width = 0.5
         height = 0.5
         plane = o3d.geometry.TriangleMesh.create_box(width=width, height=height, depth=0.005)
-        plane.translate([-width/2, -height/2, max_z+0.0025])
+        plane.translate([-width/2, -height/2, max_z+0.00125])
         plane.paint_uniform_color([0.5, 0.5, 0.5])
         #convert the plane to a point cloud
         plane_pcd = plane.sample_points_uniformly(number_of_points=100000)
@@ -442,8 +450,8 @@ class Robot_Controller:
         #for debug
 
         o3d.io.write_point_cloud('debug_combined_pcd.ply', combined_pcd)
-        #get grasp pose
-        grasp_pose = self.grasp_processor.get_grasp_pose(combined_pcd, pcd_mat, cam2base_mat, self.puppet_bot)
+        #get grasp pose, note offset grasp pose might be None
+        grasp_pose, offset_grasp_pose = self.grasp_processor.get_grasp_pose(combined_pcd, pcd_mat, cam2base_mat, self.puppet_bot)
         if grasp_pose is None:
             self.logger.error("Failed to get grasp pose")
             self.sleep_pose({})
@@ -509,7 +517,7 @@ class Anygrasp_Processor:
     def __init__(self,side = 'left') -> None:
         parser = argparse.ArgumentParser()
         parser.add_argument('--checkpoint_path',default='/home/mamager/interbotix_ws/src/aloha/aloha_poser/anygrasp_sdk/grasp_detection/log/checkpoint_detection.tar', help='Model checkpoint path')
-        parser.add_argument('--max_gripper_width', type=float, default=0.12, help='Maximum gripper width (<=0.1m)')
+        parser.add_argument('--max_gripper_width', type=float, default=0.18, help='Maximum gripper width (<=0.1m)')
         parser.add_argument('--gripper_height', type=float, default=0.19, help='Gripper height')
         parser.add_argument('--top_down_grasp',default= True, action='store_true', help='Output top-down grasps.')
         parser.add_argument('--debug', default=True,action='store_true', help='Enable debug mode')
@@ -540,7 +548,7 @@ class Anygrasp_Processor:
         args = None
         offset = OFFSET_L if self.side == 'left' else OFFSET_R
 
-        gg, cloud = self.anygrasp.get_grasp(points, colors, lims=self.lims, apply_object_mask=False, dense_grasp=True, collision_detection=False)
+        gg, cloud = self.anygrasp.get_grasp(points, colors, lims=self.lims, apply_object_mask=False, dense_grasp=False, collision_detection=False)
         if gg is None:
             return args
         elif len(gg) == 0:
@@ -550,25 +558,23 @@ class Anygrasp_Processor:
         grasp_pose_id = 0
         grasp_tobe_removed = []
         gg = gg.nms().sort_by_score()
-        #copy graspgroup
-        from copy import deepcopy
-        grasp_group = deepcopy(gg)
-        for grasp_pose in grasp_group:
+        offset_grasp_args = None
+        for grasp_pose in gg:
             grasp_pose = grasp_pose.transform(trans_mat)
             obj_width = grasp_pose.width
             grasp_args = post_process_grasp_pose(grasp_pose, offset)
             if obj_width >= OBJ_WIDTH_THRESHOLD:
-                #if the object width is larger than threshold, use local offset
-                grasp_matrix = args_to_ee_matrix(grasp_args)
-                #apply local offset to the grasp matrix
-                grasp_matrix = apply_local_offset_to_pose(grasp_matrix, [0.0,obj_width/2,0.0])
-                #convert the grasp matrix to args
-                grasp_args = ee_matrix_to_args(grasp_matrix)
-                #TODO: 如果不是抓取是否还进行偏移？
+            #if the object width is larger than threshold, use local offset
+                offset_grasp_args = apply_local_offset_to_pose_rpy(grasp_args, [0.0,obj_width/2,0.0])
+            #convert the grasp matrix to args
             if bot is not None:
-                if not check_grasp_pos(bot, grasp_args):
+                if not check_grasp_pos(bot, grasp_args) or not check_grasp_pos(bot, offset_grasp_args):
                 #remove current grasp group by id
                     grasp_tobe_removed.append(grasp_pose_id)
+                else:
+                    best_pose = grasp_args
+                    offset_best_pose = offset_grasp_args
+                    break
             grasp_pose_id += 1
         #remove invalid grasp poses
         if len(grasp_tobe_removed) > 0:
@@ -584,26 +590,25 @@ class Anygrasp_Processor:
         cloud.transform(trans_mat)
         #gripper.transform(trans_mat)
         #gripper.translate(np.array(offset))
-        best_pose = post_process_grasp_pose(gg_best, offset)
         #for debug
         o3d.visualization.draw_geometries([cloud,gripper])
-
-        return best_pose
+        #NOTE: offset_best_pose might be None
+        return best_pose, offset_best_pose
 
 
 #TODO
 ## 1. grasp pose calibration programm maybe? DONE
 ## 2. solve the wired action after grasping DONE
 ## 3. write a script to test multiple grasp poses DONE
-## 4. Multi detect bug?
+## 4. Multi detect bug? DONE
 
 
 def main():
     #test the robot controller
     controller = Robot_Controller(test_camera=False)
-    #controller.run('test_json/one_arm_grasp_move_release.json')
+    controller.run('test_json/one_arm_grasp_move_release.json')
     #controller.run('test_json/one_arm_grasp_multiple_obj.json')
-    controller.run('test_json/one_arm_multiple_detect.json')
+    #controller.run('test_json/one_arm_multiple_detect.json')
     
 if __name__ == '__main__':
     main()

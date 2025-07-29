@@ -4,10 +4,10 @@
         "quest_content": "pick up the blue block.",
         "steps": [
             "detect the blue block",
-            "move to 10cm on top of the blue block",
+            "move to 20cm on top of the blue block",
             "grasp the blue block",
-            "move up 20cm",
-            "roll over for 180 degrees"
+            "move up 20cm on top of the blue block",
+            "interactive pose"
         ]
     },
     {
@@ -15,10 +15,10 @@
         "quest_content": "pick up the red block and put it in the cup.",
         "steps": [
             "detect the red block",
-            "move to 10cm on top of the red block",
-            "grasp the red block",
-            "move up 20cm",
             "detect the cup",
+            "move to 20cm on top of the red block",
+            "grasp the red block",
+            "move to 20cm on top of the red block",
             "move to 20cm on top of the cup",
             "release the red block"
         ]
@@ -28,10 +28,10 @@
         "quest_content": "move the black box a little to the left.",
         "steps": [
             "detect the black box",
-            "move to 10cm on top of the black box",
+            "move to 20cm on top of the black box",
             "grasp the black box",
-            "move up 20cm",
-            "move left 20cm",
+            "move to 20cm on top of the black box",
+            "move 20cm left to the black box",
             "release the black box"
         ]
     },
@@ -40,22 +40,22 @@
         "quest_content": "move the pen a little to the front.",
         "steps": [
             "detect the pen",
-            "move to 10cm on top of the pen",
+            "move to 20cm on top of the pen",
             "grasp the pen",
-            "move up 20cm",
-            "move front 10cm",
+            "move to 20cm on top of the pen",
+            "move 10cm front to the pen",
             "release the pen"
         ]
     },
     {
         "quest_ID": "4",
-        "quest_content": "Place the phone 5 centimeters to the right.",
+        "quest_content": "Place the phone 15 centimeters to the right.",
         "steps": [
             "detect the phone",
-            "move to 10cm on top of the phone",
+            "move to 20cm on top of the phone",
             "grasp the phone",
-            "move up 20cm",
-            "move right 15cm",
+            "move to 20cm on top of the phone",
+            "move 15cm right to the phone",
             "release the phone"
         ]
     },
@@ -64,10 +64,10 @@
         "quest_content": "Move the screwdriver back by five centimeters.",
         "steps": [
             "detect the screwdriver",
-            "move to 10cm on top of the screwdriver",
+            "move to 20cm on top of the screwdriver",
             "grasp the screwdriver",
-            "move up 20cm",
-            "move back 5cm",
+            "move to 20cm on top of the screwdriver",
+            "move 5cm back to the screwdriver",
             "release the screwdriver"
         ]
     },
@@ -76,10 +76,11 @@
         "quest_content": "Take the pen out of the pencil case.",
         "steps": [
             "detect the pen",
-            "move to 10cm on top of the pen",
+            "detect the pencil case",
+            "move to 20cm on top of the pen",
             "grasp the pen",
-            "move up 20cm",
-            "move left 10cm",
+            "move to 20cm on top of the pen",
+            "move to 20cm on top of the pencil case",
             "release the pen"
         ]
     },
@@ -88,27 +89,25 @@
         "quest_content": "Place the bottle to the left of the cup.",
         "steps": [
             "detect the bottle",
-            "move to 10cm on top of the bottle",
-            "grasp the bottle",
-            "move up 20cm",
             "detect the cup",
-            "move 10cm left to the cup",
+            "move to 20cm on top of the bottle",
+            "grasp the bottle",
+            "move to 20cm on top of the bottle",
+            "move to 20cm on top of the cup",
+            "move to 20cm left to the cup",
             "release the bottle"
         ]
     },
     {
         "quest_ID": "8",
-        "quest_content": "Pour the water into the bowl.",
+        "quest_content": "Pour the cup.",
         "steps": [
             "detect the cup",
-            "move to 10cm on top of the cup",
+            "move to 20cm on top of the cup",
             "grasp the cup",
-            "move up 20cm",
-            "detect the bowl",
-            "move 2cm in front of the bowl",
-            "rotate the gripper 90 degrees up in pitch angle",
-            "rotate the gripper 90 degrees down in pitch angle",
-            "move 10cm left to the bowl",
+            "move to 20cm on top of the cup",
+            "rotate the gripper 120 degrees clockwise in roll angle",
+            "rotate the gripper 120 degrees counterclockwise in roll angle",
             "release the cup"
         ]
     },
@@ -117,35 +116,34 @@
         "quest_content": "pick up the red straw and put it in the cup",
         "steps": [
             "detect the red straw",
-            "move to 10cm on top of the red straw",
-            "grasp the red straw",
-            "move up 20cm",
             "detect the cup",
+            "move to 20cm on top of the red straw",
+            "grasp the red straw",
+            "move to 20cm on top of the red straw",
             "move to 20cm on top of the cup",
             "release the red straw"
         ]
     },
     {
         "quest_ID": "10",
-        "quest_content": "pick up the blue pen.",
+        "quest_content": "hand me over the blue pen.",
         "steps": [
             "detect the blue pen",
-            "move to 10cm on top of the blue pen",
+            "move to 20cm on top of the blue pen",
             "grasp the blue pen",
-            "move up 20cm"
+            "move to 20cm on top of the blue pen",
+            "interactive pose"
         ]
     },
     {
         "quest_ID": "11",
-        "quest_content": "put the pen into the cup.",
+        "quest_content": "give me the red block.",
         "steps": [
-            "detect the pen",
-            "move to 10cm on top of the pen",
-            "grasp the pen",
-            "move up 20cm",
-            "detect the cup",
-            "move to 20cm on top of the cup",
-            "release the pen"
+            "detect the red block",
+            "move to 20cm on top of the red block",
+            "grasp the red block",
+            "move to 20cm on top of the red block",
+            "interactive pose"
         ]
     }
 ]
