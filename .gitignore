@@ -1,6 +1,7 @@
 *.png
 *.jpeg
 *.jpg
+*.ply
 data_record.txt
 log.txt
 api_key.json

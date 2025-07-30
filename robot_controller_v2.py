@@ -76,7 +76,7 @@ class Robot_Controller:
         #init camera
         self.test_camera = test_camera
         #init anygrasp sdk
-        self.grasp_processor = Anygrasp_Processor(botlogger=self.bot_logger)
+        self.grasp_processor = Anygrasp_Processor()
         
     def run(self,action_sequence):
         """
@@ -106,7 +106,7 @@ class Robot_Controller:
             name = item.get('name')
             args = item.get('args')
             if args is not None:
-                args, detect_target = self.parse_args(args)
+                args = self.parse_args(args, name)
             #assign side to operate when detect is not called
             func = self.get_function_by_name(actuator_type, name)
             self.logger.info(f"Running {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm")
@@ -140,43 +140,62 @@ class Robot_Controller:
         self.home_pose({})
         self.open_gripper({})
 
-    def parse_args(self, args):
+    def parse_args(self, args, func_name):
         """
         解析参数，将参数中的detect_result替换为检测结果
         """
         parsed_args = {}
         detect_target = None
         pattern = r'(detect_result)\[["\']?(\w+)["\']?\]\[(\d+)\](\s*[\+\-]?\s*\d+(\.\d+)?(cm)?)?'
-        if 'target' in args:
-            if args['target'] is not None:
-                args['target'].replace(" ","_")
-                parsed_args['target'] = args['target']
-        for arg in args:
-            if arg == 'target':
-                break
-            if args[arg] is not None and isinstance(args[arg],str):
-                if "detect_result" in args[arg]:
-                    args[arg] = args[arg].replace(" ","")
-                    match = re.match(pattern,args[arg])
-                    
-                    if match.group(4) is not None:
-                        scale_pattern = r'([\+\-\+]?\d+(\.\d+)?)'
-                        
-                        
-                        scale_match = re.match(scale_pattern,match.group(4).strip())
-                        diviation = scale_match.group(1)
+        if func_name == 'detect':
+            #如果是检测函数，target参数需要特殊处理
+            args['target'].replace(" ","_")
+            parsed_args['target'] = args['target']
+            # remove target from args
+            args.pop('target', None)
+        else:
+            args.pop('target', None)
+            for arg in args:
+                #如果参数有值，则进行进一步处理
+                if args[arg] is not None and isinstance(args[arg],str):
+                    #如果参数包含detect_result，则进行正则匹配
+                    if "detect_result" in args[arg]:
+                        args[arg] = args[arg].replace(" ","")
+                        match = re.match(pattern,args[arg])
+                        if match.group(4) is not None:
+                            scale_pattern = r'([\+\-\+]?\d+(\.\d+)?)'
+                            scale_match = re.match(scale_pattern,match.group(4).strip())
+                            diviation = scale_match.group(1)
+                        else:
+                            diviation = 0
+                        match.group(2).replace(" ","_")
+                        if not self.bot_logger.is_grasping:
+                            #在抓取时，如果存在offset后的抓取位姿，则采用offset位姿，否则则普通位姿
+                            if 'offset_grasp_pose' in self.detect_result[match.group(2)]:
+                                parsed_args[arg] = self.detect_result[match.group(2)]['offset_grasp_pose'][int(match.group(3))] + (SCALE*float(diviation))
+                                #print(f"Using offset grasp pose for {match.group(2)} with index {match.group(3)} and diviation {diviation}")
+                            else:
+                                parsed_args[arg] = self.detect_result[match.group(2)]['grasp_pose'][int(match.group(3))] + (SCALE*float(diviation))
+                        else:
+                            #如果是其他函数，则直接使用grasp pose
+                            parsed_args[arg] = self.detect_result[match.group(2)]['grasp_pose'][int(match.group(3))] + (SCALE*float(diviation) if diviation is not None else 0)
+                        #parsed_args[arg] = parsed_args[arg][match.group(2)]
+                        #parsed_args[arg] = eval(match.group(1),{"detect_result":self.detect_result})[match.group(2)][int(match.group(3))] + (SCALE*float(scale_match.group(1)) if match.group(4) is not None else 0)
+                        #detect_target = match.group(2)
                     else:
-                        diviation = 0
-                    match.group(2).replace(" ","_")
-                    parsed_args[arg] = self.detect_result[match.group(2)][int(match.group(3))] + (SCALE*float(diviation))
-                    #parsed_args[arg] = parsed_args[arg][match.group(2)]
-                    #parsed_args[arg] = eval(match.group(1),{"detect_result":self.detect_result})[match.group(2)][int(match.group(3))] + (SCALE*float(scale_match.group(1)) if match.group(4) is not None else 0)
-                    detect_target = match.group(2)
+                        #如果参数直接是一个数值，则进行对应转换
+                        args[arg] = args[arg].replace("cm","")
+                        args[arg] = args[arg].replace("degree","")
+                        if arg in ['roll', 'pitch', 'yaw']:
+                            #角度参数转换为弧度
+                            parsed_args[arg] = np.deg2rad(np.float32(args[arg]))
+                        else:
+                            #其他参数转换为米
+                            parsed_args[arg] = np.float32(args[arg])*SCALE
                 else:
-                    parsed_args[arg] = np.float32(args[arg])*SCALE
-            else:
-                parsed_args[arg] = args[arg]
-        return parsed_args, detect_target
+                    #args is none or null
+                    parsed_args[arg] = args[arg]
+        return parsed_args
 
     def get_function_by_name(self,actuator_type, name):
         """
@@ -358,6 +377,7 @@ class Robot_Controller:
         """
         根据指定参数进行目标检测，分配对应机械臂
         """
+        #init variables
         color_img = None
         depth_img = None
         mask = None
@@ -457,7 +477,10 @@ class Robot_Controller:
             self.sleep_pose({})
             raise Exception("Failed to get grasp pose")
         #update detect result
-        self.detect_result[args['target']] = grasp_pose
+        self.detect_result[args['target']] = {}
+        self.detect_result[args['target']]['grasp_pose'] = grasp_pose
+        if offset_grasp_pose is not None:
+            self.detect_result[args['target']]['offset_grasp_pose'] = offset_grasp_pose
         self.logger.info(f"Detect result: {self.detect_result[args['target']]}")
 
     def open_gripper(self,args):
@@ -565,12 +588,16 @@ class Anygrasp_Processor:
             grasp_args = post_process_grasp_pose(grasp_pose, offset)
             if obj_width >= OBJ_WIDTH_THRESHOLD:
             #if the object width is larger than threshold, use local offset
-                offset_grasp_args = apply_local_offset_to_pose_rpy(grasp_args, [0.0,obj_width/2,0.0])
+                offset_grasp_args = apply_local_offset_to_pose_rpy(grasp_args, [0.0,-0.7*obj_width,0.0])
             #convert the grasp matrix to args
             if bot is not None:
-                if not check_grasp_pos(bot, grasp_args) or not check_grasp_pos(bot, offset_grasp_args):
+                if not check_grasp_pos(bot, grasp_args):
                 #remove current grasp group by id
                     grasp_tobe_removed.append(grasp_pose_id)
+                elif offset_grasp_args is not None and not check_grasp_pos(bot, offset_grasp_args):
+                    #if the offset grasp pose is not valid, remove it
+                    grasp_tobe_removed.append(grasp_pose_id)
+                    
                 else:
                     best_pose = grasp_args
                     offset_best_pose = offset_grasp_args
@@ -606,8 +633,8 @@ class Anygrasp_Processor:
 def main():
     #test the robot controller
     controller = Robot_Controller(test_camera=False)
-    controller.run('test_json/one_arm_grasp_move_release.json')
-    #controller.run('test_json/one_arm_grasp_multiple_obj.json')
+    #controller.run('test_json/one_arm_grasp_move_release.json')
+    controller.run('test_json/one_arm_grasp_multiple_obj.json')
     #controller.run('test_json/one_arm_multiple_detect.json')
     
 if __name__ == '__main__':
