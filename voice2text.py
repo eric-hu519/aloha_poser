@@ -3,6 +3,9 @@ import openai
 import os
 from datetime import datetime
 import json
+import multiprocessing
+import time
+import traceback
 app = Flask(__name__)
 # 设置 OpenAI API 密钥
 #从api_key.json中读取密钥
@@ -14,6 +17,10 @@ LOG_FILE = "log/voice2text_log.json"
 with open('api_key.json', 'r') as f:
     api_key = json.load(f).get('api_key')
 openai.api_key = api_key
+
+# 全局变量存储进程状态
+execution_processes = {}
+execution_status = {}
 # 主页面，提供录音功能
 @app.route('/')
 def index():
@@ -133,6 +140,139 @@ def process_query():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# 执行机器人动作的函数（在独立进程中运行）
+def execute_robot_actions(action_sequence, process_id):
+    try:
+        # 导入并初始化机器人控制器
+        from robot_controller_v2 import Robot_Controller
+        
+        # 初始化控制器
+        controller = Robot_Controller(test_camera=False,api_call=True)
+        
+        # 执行动作序列
+        controller.run(action_sequence)
+        
+        # 更新状态为成功
+        execution_status[process_id] = {
+            'status': 'completed',
+            'message': 'Action sequence executed successfully',
+            'error': None
+        }
+        
+    except Exception as e:
+        # 更新状态为失败
+        execution_status[process_id] = {
+            'status': 'failed',
+            'message': f'Execution failed: {str(e)}',
+            'error': traceback.format_exc()
+        }
+
+# 添加执行动作序列的API
+@app.route('/execute_actions', methods=['POST'])
+def execute_actions():
+    try:
+        data = request.json
+        action_sequence = data.get('action_sequence')
+        
+        if not action_sequence:
+            return jsonify({'error': 'No action sequence provided'}), 400
+        
+        # 生成唯一的进程ID
+        process_id = f"exec_{int(time.time() * 1000)}"
+        
+        # 初始化状态
+        execution_status[process_id] = {
+            'status': 'running',
+            'message': 'Executing action sequence...',
+            'error': None
+        }
+        
+        # 创建并启动新进程
+        process = multiprocessing.Process(
+            target=execute_robot_actions,
+            args=(action_sequence, process_id)
+        )
+        process.start()
+        
+        # 存储进程引用
+        execution_processes[process_id] = process
+        
+        return jsonify({
+            'success': True, 
+            'process_id': process_id,
+            'message': 'Execution started in background process'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to start execution: {str(e)}'}), 500
+
+# 查询执行状态的API
+@app.route('/execution_status/<process_id>', methods=['GET'])
+def get_execution_status(process_id):
+    try:
+        if process_id not in execution_processes:
+            return jsonify({'error': 'Process not found'}), 404
+            
+        process = execution_processes[process_id]
+        
+        # 检查进程是否还在运行
+        if process.is_alive():
+            status = execution_status.get(process_id, {
+                'status': 'running',
+                'message': 'Executing action sequence...',
+                'error': None
+            })
+        else:
+            # 进程已结束，获取最终状态
+            status = execution_status.get(process_id, {
+                'status': 'completed' if process.exitcode == 0 else 'failed',
+                'message': 'Process completed' if process.exitcode == 0 else 'Process failed',
+                'error': None if process.exitcode == 0 else f'Exit code: {process.exitcode}'
+            })
+            
+            # 清理已完成的进程
+            if process_id in execution_processes:
+                execution_processes[process_id].join()  # 确保进程完全结束
+                del execution_processes[process_id]
+        
+        return jsonify(status)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 停止执行的API
+@app.route('/stop_execution/<process_id>', methods=['POST'])
+def stop_execution(process_id):
+    try:
+        if process_id not in execution_processes:
+            return jsonify({'error': 'Process not found'}), 404
+            
+        process = execution_processes[process_id]
+        
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=5)  # 等待5秒
+            
+            if process.is_alive():
+                process.kill()  # 强制终止
+                
+            execution_status[process_id] = {
+                'status': 'stopped',
+                'message': 'Execution stopped by user',
+                'error': None
+            }
+        
+        # 清理进程
+        if process_id in execution_processes:
+            del execution_processes[process_id]
+            
+        return jsonify({'success': True, 'message': 'Execution stopped'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
+    # 设置多进程启动方法
+    multiprocessing.set_start_method('spawn', force=True)
     os.makedirs('uploads', exist_ok=True)
     app.run(host='0.0.0.0', port=5000, debug=True)

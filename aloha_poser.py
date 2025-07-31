@@ -10,14 +10,13 @@ import json
 import jsonschema
 import uuid
 #import hashlib
-from sympy import N, use
-from robot_controller import robot_controller
+#from robot_controller import robot_controller
 with open('api_key.json', 'r') as file:
     API_KEY = json.load(file)['api_key']
 
 TASK_PLANNER = 'prompts/task_planner_prompt.txt'
 ACTION_EXAMPLE = 'prompts/action_example_prompt.txt'
-USER_QUERY = 'put the pen into the cup.'
+USER_QUERY = 'Put the blue block into the cup and then hand me over the cup.'
 SYSTEM_PROMPT =  "You are a helpful assistant that pays attention to the user's instructions and writes good code in required format for operating a robot arm in a tabletop environment."
 ASSISTANT_PROMPT = 'Got it. I will complete what you give me next.'
 CONTEXT_PROMPT = "I would like you to help me write the formated code to control a robot arm operating in a tabletop environment. Please complete the code every time when I give you new query. Pay attention to appeared patterns in the given context code. Be thorough and thoughtful in your code. Do not include any import statement. Do not repeat my question. Do not provide any text explanation. Do not add any comment. I will first give you the context of the code below:\n\n```\n{user1}\n```\n\nNote that x is back to front, y is left to right, and z is bottom to up."

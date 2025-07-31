@@ -50,6 +50,38 @@
             margin: 5px 0;
             padding-left: 20px;
         }
+        #executeTaskButton {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin: 0 5px;
+        }
+        #executeTaskButton:hover {
+            background-color: #45a049;
+        }
+        #executeTaskButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #stopExecutionButton {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin: 0 5px;
+        }
+        #stopExecutionButton:hover {
+            background-color: #da190b;
+        }
+        #executionStatus {
+            background-color: #f0f8ff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px auto;
+            width: 80%;
+        }
     </style>
 </head>
 <body>
@@ -93,7 +125,15 @@
         </table>
     </div>
     <button id="confirmTaskButton">✅ 确认保存</button>
+    <button id="executeTaskButton" style="background-color: #4CAF50; color: white;">🤖 执行动作序列</button>
+    <button id="stopExecutionButton" style="background-color: #f44336; color: white; display: none;">⏹️ 停止执行</button>
     <button id="cancelTaskButton">❌ 取消</button>
+</div>
+
+<!-- 添加执行状态显示 -->
+<div id="executionStatus" style="display: none; margin-top: 20px;">
+    <h3>🤖 执行状态</h3>
+    <div id="executionMessage"></div>
 </div>
 
 <script>
@@ -101,6 +141,9 @@
     let audioChunks = [];
     let currentOriginalText = "";
     let currentTranslatedText = "";
+    let currentActionSequence = null; // 存储当前的动作序列
+    let currentProcessId = null; // 存储当前执行进程的ID
+    let statusCheckInterval = null; // 状态检查定时器
 
     // 录音按钮点击事件
     document.getElementById("recordButton").addEventListener("click", async () => {
@@ -186,6 +229,9 @@
     function displayTaskResults(taskResults) {
         const taskTableBody = document.getElementById('taskTableBody');
         taskTableBody.innerHTML = ""; // 清空之前的内容
+        
+        // 保存当前的动作序列
+        currentActionSequence = taskResults;
 
     taskResults.forEach((task, index) => {
         const row = document.createElement('tr');
@@ -273,6 +319,160 @@ function formatActionArgs(args) {
         resetUI();
     });
 
+    // 执行动作序列按钮
+    document.getElementById("executeTaskButton").addEventListener("click", async () => {
+        if (!currentActionSequence) {
+            alert("❗ 没有可执行的动作序列");
+            return;
+        }
+
+        // 确认执行
+        if (!confirm("🤖 确定要执行这个动作序列吗？\n\n注意：机器人将开始执行实际动作！")) {
+            return;
+        }
+
+        // 显示执行状态
+        document.getElementById("executionStatus").style.display = "block";
+        document.getElementById("executionMessage").innerHTML = "⌛ 正在启动执行进程...";
+        
+        // 禁用执行按钮防止重复点击
+        document.getElementById("executeTaskButton").disabled = true;
+        document.getElementById("executeTaskButton").innerText = "🤖 执行中...";
+
+        try {
+            // 启动执行进程
+            const response = await fetch('/execute_actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action_sequence: currentActionSequence })
+            });
+
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                currentProcessId = result.process_id;
+                document.getElementById("executionMessage").innerHTML = "🤖 执行进程已启动，正在监控状态...";
+                
+                // 显示停止按钮
+                document.getElementById("stopExecutionButton").style.display = "inline-block";
+                
+                // 开始监控执行状态
+                startStatusMonitoring();
+            } else {
+                document.getElementById("executionMessage").innerHTML = `❗ 启动失败: ${result.error}`;
+                document.getElementById("executionMessage").style.color = "red";
+                // 重新启用执行按钮
+                document.getElementById("executeTaskButton").disabled = false;
+                document.getElementById("executeTaskButton").innerText = "🤖 执行动作序列";
+            }
+        } catch (error) {
+            document.getElementById("executionMessage").innerHTML = `❗ 启动出错: ${error.message}`;
+            document.getElementById("executionMessage").style.color = "red";
+            // 重新启用执行按钮
+            document.getElementById("executeTaskButton").disabled = false;
+            document.getElementById("executeTaskButton").innerText = "🤖 执行动作序列";
+        }
+    });
+
+    // 停止执行按钮
+    document.getElementById("stopExecutionButton").addEventListener("click", async () => {
+        if (!currentProcessId) {
+            return;
+        }
+
+        if (!confirm("⚠️ 确定要停止执行吗？这可能会导致机器人动作中断！")) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/stop_execution/${currentProcessId}`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                document.getElementById("executionMessage").innerHTML = "⏹️ 执行已停止";
+                document.getElementById("executionMessage").style.color = "orange";
+                stopStatusMonitoring();
+            } else {
+                document.getElementById("executionMessage").innerHTML = `❗ 停止失败: ${result.error}`;
+                document.getElementById("executionMessage").style.color = "red";
+            }
+        } catch (error) {
+            document.getElementById("executionMessage").innerHTML = `❗ 停止出错: ${error.message}`;
+            document.getElementById("executionMessage").style.color = "red";
+        }
+    });
+
+    // 开始监控执行状态
+    function startStatusMonitoring() {
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+        }
+        
+        statusCheckInterval = setInterval(async () => {
+            if (!currentProcessId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/execution_status/${currentProcessId}`);
+                const status = await response.json();
+
+                if (response.ok) {
+                    updateExecutionStatus(status);
+                } else {
+                    console.error('Status check failed:', status.error);
+                }
+            } catch (error) {
+                console.error('Status check error:', error);
+            }
+        }, 1000); // 每秒检查一次状态
+    }
+
+    // 停止监控执行状态
+    function stopStatusMonitoring() {
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+            statusCheckInterval = null;
+        }
+        
+        // 重新启用执行按钮
+        document.getElementById("executeTaskButton").disabled = false;
+        document.getElementById("executeTaskButton").innerText = "🤖 执行动作序列";
+        
+        // 隐藏停止按钮
+        document.getElementById("stopExecutionButton").style.display = "none";
+        
+        currentProcessId = null;
+    }
+
+    // 更新执行状态显示
+    function updateExecutionStatus(status) {
+        const messageElement = document.getElementById("executionMessage");
+        
+        if (status.status === 'running') {
+            messageElement.innerHTML = "🤖 " + status.message;
+            messageElement.style.color = "blue";
+        } else if (status.status === 'completed') {
+            messageElement.innerHTML = "✅ " + status.message;
+            messageElement.style.color = "green";
+            stopStatusMonitoring();
+        } else if (status.status === 'failed') {
+            messageElement.innerHTML = "❗ " + status.message;
+            if (status.error) {
+                messageElement.innerHTML += `<br><details><summary>详细错误信息</summary><pre>${status.error}</pre></details>`;
+            }
+            messageElement.style.color = "red";
+            stopStatusMonitoring();
+        } else if (status.status === 'stopped') {
+            messageElement.innerHTML = "⏹️ " + status.message;
+            messageElement.style.color = "orange";
+            stopStatusMonitoring();
+        }
+    }
+
     // 取消按钮 - 不保存结果
     document.getElementById("cancelTaskButton").addEventListener("click", () => {
         resetUI();
@@ -290,11 +490,19 @@ function formatActionArgs(args) {
         document.getElementById("english-text").innerText = "📚 英文：等待翻译结果...";
         document.getElementById("actionButtons").style.display = "none";
         document.getElementById("taskResult").style.display = "none";
+        document.getElementById("executionStatus").style.display = "none";
         currentOriginalText = "";
         currentTranslatedText = "";
+        currentActionSequence = null;
         audioChunks = [];
         document.getElementById("recordButton").disabled = false;
         document.getElementById("stopButton").disabled = true;
+        document.getElementById("executeTaskButton").disabled = false;
+        document.getElementById("executeTaskButton").innerText = "🤖 执行动作序列";
+        document.getElementById("stopExecutionButton").style.display = "none";
+        
+        // 停止状态监控
+        stopStatusMonitoring();
     }
 </script>
 

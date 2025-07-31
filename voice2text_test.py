@@ -3,7 +3,8 @@ import os
 
 # 设置 OpenAI API 密钥
 # 你可以直接在代码中设置，也可以通过读取环境变量或配置文件获取
-#openai.api_key = 
+openai.api_key = ""
+
 
 def transcribe_audio(file_path):
     try:

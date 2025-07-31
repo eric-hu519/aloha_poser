@@ -145,5 +145,39 @@
             "move to 20cm on top of the red block",
             "interactive pose"
         ]
+    },
+    {
+        "quest_ID": "12",
+        "quest_content": "Put the pen into the box first, and then put the eraser into the box as well.",
+        "steps": [
+            "detect the pen",
+            "detect the box",
+            "detect the eraser",
+            "move to 20cm on top of the pen",
+            "grasp the pen",
+            "move to 20cm on top of the box",
+            "release the pen",
+            "move to 20cm on top of the eraser",
+            "grasp the eraser",
+            "move to 20cm on top of the box",
+            "release the eraser"
+        ]
+    },
+        {
+        "quest_ID": "13",
+        "quest_content": "Put both the potato and the tomato into the bag.",
+        "steps": [
+            "detect the potato",
+            "detect the tomato",
+            "detect the bag",
+            "move to 20cm on top of the potato",
+            "grasp the potato",
+            "move to 20cm on top of the bag",
+            "release the potato",
+            "move to 20cm on top of the tomato",
+            "grasp the tomato",
+            "move to 20cm on top of the bag",
+            "release the tomato"
+        ]
     }
 ]

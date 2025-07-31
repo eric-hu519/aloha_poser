@@ -89,57 +89,5 @@
             "yaw": null,
             "target": null
         }
-    },
-        {
-        "type": "arm", 
-        "name": "set_pose", 
-        "args": {
-            "x": "detect_result[\"white_cup\"][0]",
-            "y": "detect_result[\"white_cup\"][1]", 
-            "z": "detect_result[\"white_cup\"][2]+20", 
-            "roll": "detect_result[\"white_cup\"][3]",
-            "pitch": "detect_result[\"white_cup\"][4]",
-            "yaw": "detect_result[\"white_cup\"][5]",
-            "target": null
-            }
-    },
-    {
-        "type": "arm", 
-        "name": "grasp", 
-        "args": {
-            "x": "detect_result[\"white_cup\"][0]",
-            "y": "detect_result[\"white_cup\"][1]", 
-            "z": "detect_result[\"white_cup\"][2]", 
-            "roll": "detect_result[\"white_cup\"][3]",
-            "pitch": "detect_result[\"white_cup\"][4]",
-            "yaw": "detect_result[\"white_cup\"][5]",
-            "target": null
-            }
-    },
-    {
-        "type": "arm", 
-        "name": "set_pose", 
-        "args": {
-            "x": "detect_result[\"white_cup\"][0]",
-            "y": "detect_result[\"white_cup\"][1]-20", 
-            "z": "detect_result[\"white_cup\"][2]+20", 
-            "roll": "detect_result[\"white_cup\"][3]",
-            "pitch": "detect_result[\"white_cup\"][4]",
-            "yaw": "detect_result[\"white_cup\"][5]",
-            "target": null
-            }
-    },
-    {
-        "type": "arm",
-        "name": "release",
-        "args": {
-            "x": null,
-            "y": null,
-            "z": null,
-            "roll": null,
-            "pitch": null,
-            "yaw": null,
-            "target": null
-        }
     }
 ]

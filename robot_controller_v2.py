@@ -31,7 +31,7 @@ from utils.pressure_sensor import PressureSensor
 from anygrasp_sdk.grasp_detection.cloud_point_process_v2 import RealSenseCapture
 from anygrasp_sdk.grasp_detection.cloud_point_process_v2 import CloudPointProcessor as processor
 IMAGE_URL = "http://192.168.31.109:1115/upload"
-OFFSET_L = [0.035, -0.1, 0.05, 0.0, 0.17, 0.0]
+OFFSET_L = [0.035, -0.1, 0.03, 0.0, 0.17, 0.0]
 OFFSET_R = [0.07, 0.057, 0.25]#NOTE: Need recalibrite
 DEFAULT_SIDE = 'left'
 HOME_POSE = {'left': {'x': 0.25, 'y': 0, 'z': 0.350, 'roll': 0, 'pitch': 0, 'yaw': 0},
@@ -45,11 +45,11 @@ CAM_TRANS = [0,0.45,0.15]
 BASE_ROT = [126,0,90]
 BASE_TRANS = [0.32,0.31,-0.24]
 
-GRASP_OFFSET = 0.08
+GRASP_OFFSET = 0.13
 RELEASE_OFFSET = -0.05
 
 class Robot_Controller:
-    def __init__(self,test_camera = False) -> None:
+    def __init__(self,test_camera = False, api_call = False) -> None:
         """
         :param one_arm_mode: bool, if True, only one arm will be used
         :param test_camera: bool, if True, the realsense camera will not be used, use presaved img instead
@@ -77,6 +77,8 @@ class Robot_Controller:
         self.test_camera = test_camera
         #init anygrasp sdk
         self.grasp_processor = Anygrasp_Processor()
+        #Web api call
+        self.api_call = api_call
         
     def run(self,action_sequence):
         """
@@ -101,7 +103,11 @@ class Robot_Controller:
         运行单边动作序列
         """
         #run action sequence
+        stepid = 0
         for item in action_sequence:
+            if self.api_call:
+                item = item['actions'][0]
+            self.logger.info(f'Processing Action:\n{item}\n')
             actuator_type = item.get('type')
             name = item.get('name')
             args = item.get('args')
@@ -121,14 +127,21 @@ class Robot_Controller:
                 #         args['yaw'] = last_action.yaw
                 func(args)
                 #get current stepid
-                stepid = action_sequence.index(item)
+                if self.api_call:
+                    self.bot_logger.log_action(stepid=stepid)
+                    stepid += 1
+                else:
+                    #log robot status
+                    stepid = action_sequence.index(item)
+                    self.bot_logger.log_action(stepid = stepid)
+                    
                 if name == 'grasp':
                     self.bot_logger.is_grasping = True
                 elif name == 'release':
                     self.bot_logger.is_grasping = False
-                #log robot status
-                self.bot_logger.log_action(stepid = stepid)
+               
             except Exception as e:
+                self.sleep_pose({})
                 self.logger.error(f"Error in {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm: {e}")
                 raise e
         self.home_pose({})
@@ -151,8 +164,6 @@ class Robot_Controller:
             #如果是检测函数，target参数需要特殊处理
             args['target'].replace(" ","_")
             parsed_args['target'] = args['target']
-            # remove target from args
-            args.pop('target', None)
         else:
             args.pop('target', None)
             for arg in args:
@@ -618,7 +629,7 @@ class Anygrasp_Processor:
         #gripper.transform(trans_mat)
         #gripper.translate(np.array(offset))
         #for debug
-        o3d.visualization.draw_geometries([cloud,gripper])
+        #o3d.visualization.draw_geometries([cloud,gripper])
         #NOTE: offset_best_pose might be None
         return best_pose, offset_best_pose
 
