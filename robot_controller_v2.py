@@ -46,7 +46,7 @@ BASE_ROT = [126,0,90]
 BASE_TRANS = [0.32,0.31,-0.24]
 
 GRASP_OFFSET = 0.13
-RELEASE_OFFSET = -0.05
+RELEASE_OFFSET = -0.065
 
 class Robot_Controller:
     def __init__(self,test_camera = False, api_call = False) -> None:
@@ -104,6 +104,7 @@ class Robot_Controller:
         """
         #run action sequence
         stepid = 0
+        action_target = None
         for item in action_sequence:
             if self.api_call:
                 item = item['actions'][0]
@@ -112,7 +113,7 @@ class Robot_Controller:
             name = item.get('name')
             args = item.get('args')
             if args is not None:
-                args = self.parse_args(args, name)
+                args, action_target = self.parse_args(args, name)
             #assign side to operate when detect is not called
             func = self.get_function_by_name(actuator_type, name)
             self.logger.info(f"Running {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm")
@@ -126,20 +127,30 @@ class Robot_Controller:
                 #         args['pitch'] = last_action.pitch
                 #         args['yaw'] = last_action.yaw
                 func(args)
-                #get current stepid
+                
+                if name == 'grasp':
+                    #记录抓取状态和抓取物体
+                    self.bot_logger.is_grasping = True
+                    self.bot_logger.grasping_obj = action_target
+                elif name == 'release':
+                    #TODO: update grasping obj pose after release, or require re-detection every time after release?
+                    self.bot_logger.is_grasping = False
+                    self.bot_logger.grasping_obj = None
+                #get current stepid                
                 if self.api_call:
+                    #when called by voice API
                     self.bot_logger.log_action(stepid=stepid)
                     stepid += 1
                 else:
                     #log robot status
                     stepid = action_sequence.index(item)
                     self.bot_logger.log_action(stepid = stepid)
-                    
-                if name == 'grasp':
-                    self.bot_logger.is_grasping = True
-                elif name == 'release':
-                    self.bot_logger.is_grasping = False
-               
+                #update obj position if grasping
+                if self.bot_logger.is_grasping:
+                    self.detect_result[self.bot_logger.grasping_obj]['grasp_pose'] = self.bot_logger.get_arm_position()
+                    if 'offset_grasp_pose' in self.detect_result[self.bot_logger.grasping_obj]:
+                        self.detect_result[self.bot_logger.grasping_obj]['offset_grasp_pose'] = apply_local_offset_to_pose_rpy(self.bot_logger.get_arm_position(), [0.0,-0.7*self.detect_result[self.bot_logger.grasping_obj]['obj_width'],0.0])
+
             except Exception as e:
                 self.sleep_pose({})
                 self.logger.error(f"Error in {actuator_type} {name} with args {args} for {DEFAULT_SIDE} arm: {e}")
@@ -158,7 +169,7 @@ class Robot_Controller:
         解析参数，将参数中的detect_result替换为检测结果
         """
         parsed_args = {}
-        detect_target = None
+        action_target = None
         pattern = r'(detect_result)\[["\']?(\w+)["\']?\]\[(\d+)\](\s*[\+\-]?\s*\d+(\.\d+)?(cm)?)?'
         if func_name == 'detect':
             #如果是检测函数，target参数需要特殊处理
@@ -192,7 +203,7 @@ class Robot_Controller:
                             parsed_args[arg] = self.detect_result[match.group(2)]['grasp_pose'][int(match.group(3))] + (SCALE*float(diviation) if diviation is not None else 0)
                         #parsed_args[arg] = parsed_args[arg][match.group(2)]
                         #parsed_args[arg] = eval(match.group(1),{"detect_result":self.detect_result})[match.group(2)][int(match.group(3))] + (SCALE*float(scale_match.group(1)) if match.group(4) is not None else 0)
-                        #detect_target = match.group(2)
+                        action_target = match.group(2)
                     else:
                         #如果参数直接是一个数值，则进行对应转换
                         args[arg] = args[arg].replace("cm","")
@@ -206,7 +217,7 @@ class Robot_Controller:
                 else:
                     #args is none or null
                     parsed_args[arg] = args[arg]
-        return parsed_args
+        return parsed_args, action_target
 
     def get_function_by_name(self,actuator_type, name):
         """
@@ -359,13 +370,14 @@ class Robot_Controller:
         #first move above the target
         self.set_pose(args)
         #move down
-        args['z'] -= GRASP_OFFSET
-        self.set_pose(args)
+        args = {}
+        args['z'] = -GRASP_OFFSET
+        self.set_trajectory(args)
         #close gripper
         self.close_gripper({})
         #move up
-        args['z'] += GRASP_OFFSET
-        self.set_pose(args)
+        args['z'] = GRASP_OFFSET
+        self.set_trajectory(args)
     #释放目标API
     def release_obj(self, args):
         """
@@ -482,7 +494,7 @@ class Robot_Controller:
 
         o3d.io.write_point_cloud('debug_combined_pcd.ply', combined_pcd)
         #get grasp pose, note offset grasp pose might be None
-        grasp_pose, offset_grasp_pose = self.grasp_processor.get_grasp_pose(combined_pcd, pcd_mat, cam2base_mat, self.puppet_bot)
+        grasp_pose, offset_grasp_pose, obj_width = self.grasp_processor.get_grasp_pose(combined_pcd, pcd_mat, cam2base_mat, self.puppet_bot)
         if grasp_pose is None:
             self.logger.error("Failed to get grasp pose")
             self.sleep_pose({})
@@ -490,6 +502,7 @@ class Robot_Controller:
         #update detect result
         self.detect_result[args['target']] = {}
         self.detect_result[args['target']]['grasp_pose'] = grasp_pose
+        self.detect_result[args['target']]['obj_width'] = obj_width
         if offset_grasp_pose is not None:
             self.detect_result[args['target']]['offset_grasp_pose'] = offset_grasp_pose
         self.logger.info(f"Detect result: {self.detect_result[args['target']]}")
@@ -593,6 +606,7 @@ class Anygrasp_Processor:
         grasp_tobe_removed = []
         gg = gg.nms().sort_by_score()
         offset_grasp_args = None
+        obj_width = 0.0
         for grasp_pose in gg:
             grasp_pose = grasp_pose.transform(trans_mat)
             obj_width = grasp_pose.width
@@ -629,9 +643,9 @@ class Anygrasp_Processor:
         #gripper.transform(trans_mat)
         #gripper.translate(np.array(offset))
         #for debug
-        #o3d.visualization.draw_geometries([cloud,gripper])
+        o3d.visualization.draw_geometries([cloud,gripper])
         #NOTE: offset_best_pose might be None
-        return best_pose, offset_best_pose
+        return best_pose, offset_best_pose, obj_width
 
 
 #TODO
@@ -639,13 +653,14 @@ class Anygrasp_Processor:
 ## 2. solve the wired action after grasping DONE
 ## 3. write a script to test multiple grasp poses DONE
 ## 4. Multi detect bug? DONE
+## 5. Adaptive grasp and release offset distance!
 
 
 def main():
     #test the robot controller
     controller = Robot_Controller(test_camera=False)
-    #controller.run('test_json/one_arm_grasp_move_release.json')
-    controller.run('test_json/one_arm_grasp_multiple_obj.json')
+    controller.run('test_json/one_arm_grasp_move_release.json')
+    #controller.run('test_json/one_arm_grasp_multiple_obj.json')
     #controller.run('test_json/one_arm_multiple_detect.json')
     
 if __name__ == '__main__':

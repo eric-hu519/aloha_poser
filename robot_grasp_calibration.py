@@ -31,7 +31,7 @@ def main():
 
     #get grasp pose
 
-    grasp_pose = grasp_processor.get_grasp_pose(pcd, pcd_mat, cam2base_mat, controller.puppet_bot)
+    grasp_pose, _,_ = grasp_processor.get_grasp_pose(pcd, pcd_mat, cam2base_mat, controller.puppet_bot)
     if grasp_pose is None:
         controller.sleep_pose({})
         raise Exception("Failed to get grasp pose")

@@ -9,19 +9,19 @@
             "roll":null,
             "pitch":null,
             "yaw":null,
-            "target":"white_cup"
+            "target":"red_block"
         }
     },
     {
         "type": "arm", 
         "name": "set_pose", 
         "args": {
-            "x": "detect_result[\"white_cup\"][0]",
-            "y": "detect_result[\"white_cup\"][1]", 
-            "z": "detect_result[\"white_cup\"][2]+20", 
-            "roll": "detect_result[\"white_cup\"][3]",
-            "pitch": "detect_result[\"white_cup\"][4]",
-            "yaw": "detect_result[\"white_cup\"][5]",
+            "x": "detect_result[\"red_block\"][0]",
+            "y": "detect_result[\"red_block\"][1]", 
+            "z": "detect_result[\"red_block\"][2]+20", 
+            "roll": "detect_result[\"red_block\"][3]",
+            "pitch": "detect_result[\"red_block\"][4]",
+            "yaw": "detect_result[\"red_block\"][5]",
             "target": null
             }
     },
@@ -29,12 +29,12 @@
         "type": "arm", 
         "name": "grasp", 
         "args": {
-            "x": "detect_result[\"white_cup\"][0]",
-            "y": "detect_result[\"white_cup\"][1]", 
-            "z": "detect_result[\"white_cup\"][2]", 
-            "roll": "detect_result[\"white_cup\"][3]",
-            "pitch": "detect_result[\"white_cup\"][4]",
-            "yaw": "detect_result[\"white_cup\"][5]",
+            "x": "detect_result[\"red_block\"][0]",
+            "y": "detect_result[\"red_block\"][1]", 
+            "z": "detect_result[\"red_block\"][2]", 
+            "roll": "detect_result[\"red_block\"][3]",
+            "pitch": "detect_result[\"red_block\"][4]",
+            "yaw": "detect_result[\"red_block\"][5]",
             "target": null
             }
     },
@@ -42,12 +42,25 @@
         "type": "arm", 
         "name": "set_pose", 
         "args": {
-            "x": "detect_result[\"white_cup\"][0]",
-            "y": "detect_result[\"white_cup\"][1]", 
-            "z": "detect_result[\"white_cup\"][2]+20", 
-            "roll": "detect_result[\"white_cup\"][3]",
-            "pitch": "detect_result[\"white_cup\"][4]",
-            "yaw": "detect_result[\"white_cup\"][5]",
+            "x": "detect_result[\"red_block\"][0]",
+            "y": "detect_result[\"red_block\"][1]", 
+            "z": "detect_result[\"red_block\"][2]+20", 
+            "roll": "detect_result[\"red_block\"][3]",
+            "pitch": "detect_result[\"red_block\"][4]",
+            "yaw": "detect_result[\"red_block\"][5]",
+            "target": null
+            }
+    },
+        {
+        "type": "arm", 
+        "name": "set_pose", 
+        "args": {
+            "x": "detect_result[\"red_block\"][0]",
+            "y": "detect_result[\"red_block\"][1]+10", 
+            "z": "detect_result[\"red_block\"][2]", 
+            "roll": "detect_result[\"red_block\"][3]",
+            "pitch": "detect_result[\"red_block\"][4]",
+            "yaw": "detect_result[\"red_block\"][5]",
             "target": null
             }
     },

@@ -31,7 +31,7 @@
             "move to 20cm on top of the black box",
             "grasp the black box",
             "move to 20cm on top of the black box",
-            "move 20cm left to the black box",
+            "move 10cm left to the black box",
             "release the black box"
         ]
     },
@@ -178,6 +178,22 @@
             "grasp the tomato",
             "move to 20cm on top of the bag",
             "release the tomato"
+        ]
+    },
+            {
+        "quest_ID": "14",
+        "quest_content": "First grasp the yellow box and move it left, then grasp the blue box to move it right.",
+        "steps": [
+            "detect the yellow box",
+            "detect the blue box",
+            "move to 20cm on top of the yellow box",
+            "grasp the yellow box",
+            "move to 10cm to the left of the yellow box",
+            "release the yellow box",
+            "move to 20cm on top of the blue box",
+            "grasp the blue box",
+            "move to 10cm to the right of the blue box",
+            "release the blue box"
         ]
     }
 ]
